@@ -2,14 +2,15 @@ import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, decimal, uniqueIn
 
 /**
  * Core user table backing auth flow.
+ * Supports both email/password and OAuth authentication
  */
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
-  openId: varchar("openId", { length: 64 }).notNull().unique(),
-  name: text("name"),
-  email: varchar("email", { length: 320 }),
-  loginMethod: varchar("loginMethod", { length: 64 }),
+  email: varchar("email", { length: 320 }).notNull().unique(),
+  passwordHash: varchar("passwordHash", { length: 255 }), // null for OAuth-only users
+  name: varchar("name", { length: 255 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  emailVerified: timestamp("emailVerified"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -17,6 +18,26 @@ export const users = mysqlTable("users", {
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
+
+/**
+ * OAuth accounts table - links users to OAuth providers
+ */
+export const oauthAccounts = mysqlTable("oauth_accounts", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  provider: varchar("provider", { length: 50 }).notNull(), // 'google', 'github', 'line', etc.
+  providerId: varchar("providerId", { length: 255 }).notNull(), // OAuth provider's user ID
+  accessToken: text("accessToken"),
+  refreshToken: text("refreshToken"),
+  expiresAt: timestamp("expiresAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  providerIdx: uniqueIndex("provider_providerId_idx").on(table.provider, table.providerId),
+}));
+
+export type OAuthAccount = typeof oauthAccounts.$inferSelect;
+export type InsertOAuthAccount = typeof oauthAccounts.$inferInsert;
 
 /**
  * Stores table - 参加店舗
