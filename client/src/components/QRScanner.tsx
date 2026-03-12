@@ -35,7 +35,15 @@ export default function QRScanner({ onScan, onClose }: QRScannerProps) {
     init();
     return () => {
       if (scannerRef.current) {
-        scannerRef.current.stop().catch(() => {});
+        // Check if scanner is actually running before stopping
+        const state = scannerRef.current.getState();
+        if (state === 2) {
+          // State 2 = SCANNING
+          scannerRef.current.stop().catch((err: any) => {
+            console.log("Scanner already stopped:", err);
+          });
+        }
+        scannerRef.current = null;
       }
     };
   }, [onScan]);
