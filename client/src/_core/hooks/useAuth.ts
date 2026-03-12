@@ -1,4 +1,3 @@
-import { getLoginUrl } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
 import { useCallback, useEffect, useMemo } from "react";
@@ -9,7 +8,7 @@ type UseAuthOptions = {
 };
 
 export function useAuth(options?: UseAuthOptions) {
-  const { redirectOnUnauthenticated = false, redirectPath = getLoginUrl() } =
+  const { redirectOnUnauthenticated = false, redirectPath = "/login" } =
     options ?? {};
   const utils = trpc.useUtils();
 
@@ -20,6 +19,8 @@ export function useAuth(options?: UseAuthOptions) {
 
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: () => {
+      // Remove JWT token from localStorage
+      localStorage.removeItem("auth_token");
       utils.auth.me.setData(undefined, null);
     },
   });
@@ -32,10 +33,13 @@ export function useAuth(options?: UseAuthOptions) {
         error instanceof TRPCClientError &&
         error.data?.code === "UNAUTHORIZED"
       ) {
+        // Already logged out
+        localStorage.removeItem("auth_token");
         return;
       }
       throw error;
     } finally {
+      localStorage.removeItem("auth_token");
       utils.auth.me.setData(undefined, null);
       await utils.auth.me.invalidate();
     }
