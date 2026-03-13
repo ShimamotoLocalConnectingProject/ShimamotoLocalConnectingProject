@@ -158,7 +158,14 @@ export default function Home() {
             ) : (
               <Button
                 size="sm"
-                onClick={() => (window.location.href = getLoginUrl())}
+                onClick={() => {
+                  const loginUrl = getLoginUrl();
+                  if (loginUrl) {
+                    window.location.href = loginUrl;
+                  } else {
+                    window.location.href = "/login";
+                  }
+                }}
                 className="bg-gradient-to-r from-gold-500 to-gold-600 text-warm-900 hover:from-gold-400 hover:to-gold-500 text-xs font-bold rounded-full border-0"
               >
                 ログイン
