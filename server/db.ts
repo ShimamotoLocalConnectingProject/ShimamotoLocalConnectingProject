@@ -1,5 +1,6 @@
 import { eq, and, gte, lte, sql, desc, count, sum } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import {
   InsertUser, users,
   stores, InsertStore, Store,
@@ -12,11 +13,13 @@ import { ENV } from './_core/env';
 import crypto from "crypto";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _client: ReturnType<typeof postgres> | null = null;
 
 // Initialize DB connection immediately if DATABASE_URL is available
 if (process.env.DATABASE_URL) {
   try {
-    _db = drizzle(process.env.DATABASE_URL);
+    _client = postgres(process.env.DATABASE_URL);
+    _db = drizzle(_client);
   } catch (error) {
     console.warn("[Database] Failed to connect:", error);
   }
@@ -28,7 +31,8 @@ export const db = _db!;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      _client = postgres(process.env.DATABASE_URL);
+      _db = drizzle(_client);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
