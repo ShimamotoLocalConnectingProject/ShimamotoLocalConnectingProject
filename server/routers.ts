@@ -249,6 +249,196 @@ export const appRouter = router({
     stats: adminProcedure.query(async () => {
       return db.getStats();
     }),
+    auditLogs: adminProcedure
+      .input(z.object({
+        limit: z.number().int().min(1).max(500).default(50),
+        offset: z.number().int().min(0).default(0),
+      }))
+      .query(async ({ input, ctx }) => {
+        // Log audit log access
+        await logAudit({
+          action: "admin.audit_log_view",
+          userId: ctx.user.id,
+          userEmail: ctx.user.email,
+          success: true,
+        });
+        return db.getAuditLogs(input.limit, input.offset);
+      }),
+  }),
+
+  // ============================================================
+  // Food Sharing routes
+  // ============================================================
+  food: router({
+    // Get available food items (public or filtered by store)
+    list: publicProcedure
+      .input(z.object({ storeId: z.number().optional() }))
+      .query(async ({ input }) => {
+        return db.getAvailableFoodItems(input.storeId);
+      }),
+
+    // Get single food item
+    get: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const item = await db.getFoodItemById(input.id);
+        if (!item) throw new Error("商品が見つかりません");
+        return item;
+      }),
+
+    // Create food item (admin only)
+    create: adminProcedure
+      .input(z.object({
+        storeId: z.number(),
+        title: z.string().min(1).max(200),
+        description: z.string().optional(),
+        originalPrice: z.number().int().min(0),
+        discountedPrice: z.number().int().min(0),
+        quantity: z.number().int().min(1),
+        expiresAt: z.date(),
+        imageUrl: z.string().url().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const item = await db.createFoodItem(input);
+        
+        // Log audit
+        await logAudit({
+          action: "food.create",
+          userId: ctx.user.id,
+          userEmail: ctx.user.email,
+          resource: `food:${item.id}`,
+          metadata: { storeId: input.storeId, title: input.title },
+          success: true,
+        });
+
+        return item;
+      }),
+
+    // Update food item (admin only)
+    update: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        title: z.string().min(1).max(200).optional(),
+        description: z.string().optional(),
+        originalPrice: z.number().int().min(0).optional(),
+        discountedPrice: z.number().int().min(0).optional(),
+        quantity: z.number().int().min(1).optional(),
+        expiresAt: z.date().optional(),
+        imageUrl: z.string().url().optional(),
+        status: z.enum(["available", "reserved", "sold_out", "expired"]).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { id, ...updates } = input;
+        const item = await db.updateFoodItem(id, updates);
+
+        // Log audit
+        await logAudit({
+          action: "food.update",
+          userId: ctx.user.id,
+          userEmail: ctx.user.email,
+          resource: `food:${id}`,
+          metadata: updates,
+          success: true,
+        });
+
+        return item;
+      }),
+
+    // Delete food item (admin only)
+    delete: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        await db.deleteFoodItem(input.id);
+
+        // Log audit
+        await logAudit({
+          action: "food.delete",
+          userId: ctx.user.id,
+          userEmail: ctx.user.email,
+          resource: `food:${input.id}`,
+          success: true,
+        });
+
+        return { success: true };
+      }),
+
+    // Reserve food item (user)
+    reserve: protectedProcedure
+      .input(z.object({
+        foodItemId: z.number(),
+        quantity: z.number().int().min(1),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const reservation = await db.createFoodReservation(
+          ctx.user.id,
+          input.foodItemId,
+          input.quantity
+        );
+
+        // Log audit
+        await logAudit({
+          action: "food.reserve",
+          userId: ctx.user.id,
+          userEmail: ctx.user.email,
+          resource: `food:${input.foodItemId}`,
+          metadata: { quantity: input.quantity, reservationId: reservation.id },
+          success: true,
+        });
+
+        return reservation;
+      }),
+
+    // Get user's reservations
+    myReservations: protectedProcedure.query(async ({ ctx }) => {
+      return db.getUserFoodReservations(ctx.user.id);
+    }),
+
+    // Get store's reservations (admin only)
+    storeReservations: adminProcedure
+      .input(z.object({ storeId: z.number() }))
+      .query(async ({ input }) => {
+        return db.getStoreFoodReservations(input.storeId);
+      }),
+
+    // Confirm pickup (admin/store side via QR scan)
+    confirmPickup: adminProcedure
+      .input(z.object({
+        code: z.string(),
+        storeId: z.number(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const reservation = await db.confirmFoodPickup(input.code, input.storeId);
+
+        // Log audit
+        await logAudit({
+          action: "food.pickup",
+          userId: ctx.user.id,
+          userEmail: ctx.user.email,
+          resource: `reservation:${reservation.id}`,
+          metadata: { code: input.code, storeId: input.storeId },
+          success: true,
+        });
+
+        return reservation;
+      }),
+
+    // Cancel reservation (user)
+    cancelReservation: protectedProcedure
+      .input(z.object({ reservationId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await db.cancelFoodReservation(input.reservationId, ctx.user.id);
+
+        // Log audit
+        await logAudit({
+          action: "food.cancel",
+          userId: ctx.user.id,
+          userEmail: ctx.user.email,
+          resource: `reservation:${input.reservationId}`,
+          success: true,
+        });
+
+        return { success: true };
+      }),
   }),
 });
 

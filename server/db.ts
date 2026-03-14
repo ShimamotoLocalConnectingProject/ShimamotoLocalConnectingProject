@@ -10,6 +10,8 @@ import {
   rewardUsage,
   rewardTokens, InsertRewardToken,
   auditLogs, InsertAuditLog,
+  foodItems, InsertFoodItem, FoodItem,
+  foodReservations, InsertFoodReservation, FoodReservation,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import crypto from "crypto";
@@ -472,4 +474,270 @@ export async function getAuditLogsByUser(userId: number, limit: number = 50) {
     .where(eq(auditLogs.userId, userId))
     .orderBy(desc(auditLogs.timestamp))
     .limit(limit);
+}
+
+// ============================================================
+// Food Sharing helpers
+// ============================================================
+
+/**
+ * フードシェアリング商品を作成
+ */
+export async function createFoodItem(item: InsertFoodItem): Promise<FoodItem> {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+
+  const [newItem] = await db.insert(foodItems)
+    .values({
+      ...item,
+      remainingQuantity: item.quantity, // 初期在庫 = 数量
+    })
+    .returning();
+
+  return newItem;
+}
+
+/**
+ * 利用可能なフードシェアリング商品一覧を取得（期限切れ・売切れを除外）
+ */
+export async function getAvailableFoodItems(storeId?: number): Promise<FoodItem[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const now = new Date();
+  const conditions = [
+    gte(foodItems.expiresAt, now),
+    sql`${foodItems.remainingQuantity} > 0`,
+  ];
+
+  if (storeId) {
+    conditions.push(eq(foodItems.storeId, storeId));
+  }
+
+  return db.select()
+    .from(foodItems)
+    .where(and(...conditions))
+    .orderBy(foodItems.expiresAt); // 期限近い順
+}
+
+/**
+ * 特定の商品を取得
+ */
+export async function getFoodItemById(id: number): Promise<FoodItem | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const [item] = await db.select()
+    .from(foodItems)
+    .where(eq(foodItems.id, id))
+    .limit(1);
+
+  return item || null;
+}
+
+/**
+ * 商品情報を更新
+ */
+export async function updateFoodItem(id: number, updates: Partial<InsertFoodItem>): Promise<FoodItem> {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+
+  const [updated] = await db.update(foodItems)
+    .set({
+      ...updates,
+      updatedAt: new Date(),
+    })
+    .where(eq(foodItems.id, id))
+    .returning();
+
+  if (!updated) throw new Error("商品が見つかりません");
+  return updated;
+}
+
+/**
+ * 商品を削除
+ */
+export async function deleteFoodItem(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+
+  await db.delete(foodItems).where(eq(foodItems.id, id));
+}
+
+/**
+ * フードシェアリング予約を作成（在庫チェック込み）
+ */
+export async function createFoodReservation(
+  userId: number,
+  foodItemId: number,
+  quantity: number
+): Promise<FoodReservation> {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+
+  // トランザクション開始
+  return await db.transaction(async (tx) => {
+    // 商品情報取得（楽観的ロック）
+    const [item] = await tx.select()
+      .from(foodItems)
+      .where(eq(foodItems.id, foodItemId))
+      .limit(1);
+
+    if (!item) throw new Error("商品が見つかりません");
+    if (item.remainingQuantity < quantity) throw new Error("在庫が不足しています");
+    if (new Date() > item.expiresAt) throw new Error("受取期限が過ぎています");
+
+    // 既存の予約をチェック（1ユーザー1商品につき1予約まで）
+    const [existingReservation] = await tx.select()
+      .from(foodReservations)
+      .where(
+        and(
+          eq(foodReservations.userId, userId),
+          eq(foodReservations.foodItemId, foodItemId),
+          sql`${foodReservations.status} IN ('pending', 'confirmed')`
+        )
+      )
+      .limit(1);
+
+    if (existingReservation) throw new Error("この商品は既に予約済みです");
+
+    // 在庫を減らす
+    await tx.update(foodItems)
+      .set({
+        remainingQuantity: sql`${foodItems.remainingQuantity} - ${quantity}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(foodItems.id, foodItemId));
+
+    // 予約コード生成（UUID v4）
+    const reservationCode = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30分後
+
+    // QRペイロード生成
+    const qrPayload = `shimamoto://food-pickup?code=${reservationCode}&item=${foodItemId}`;
+
+    // 予約レコード作成
+    const [reservation] = await tx.insert(foodReservations)
+      .values({
+        foodItemId,
+        userId,
+        storeId: item.storeId,
+        quantity,
+        reservationCode,
+        qrPayload,
+        expiresAt,
+        status: "pending",
+      })
+      .returning();
+
+    return reservation;
+  });
+}
+
+/**
+ * 予約情報を取得
+ */
+export async function getFoodReservationByCode(code: string): Promise<FoodReservation | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  const [reservation] = await db.select()
+    .from(foodReservations)
+    .where(eq(foodReservations.reservationCode, code))
+    .limit(1);
+
+  return reservation || null;
+}
+
+/**
+ * ユーザーの予約一覧を取得
+ */
+export async function getUserFoodReservations(userId: number): Promise<FoodReservation[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select()
+    .from(foodReservations)
+    .where(eq(foodReservations.userId, userId))
+    .orderBy(desc(foodReservations.createdAt));
+}
+
+/**
+ * 店舗の予約一覧を取得
+ */
+export async function getStoreFoodReservations(storeId: number): Promise<FoodReservation[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select()
+    .from(foodReservations)
+    .where(eq(foodReservations.storeId, storeId))
+    .orderBy(desc(foodReservations.createdAt));
+}
+
+/**
+ * 予約を受取完了にする（店舗側操作）
+ */
+export async function confirmFoodPickup(code: string, storeId: number): Promise<FoodReservation> {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+
+  // 予約取得
+  const reservation = await getFoodReservationByCode(code);
+  if (!reservation) throw new Error("予約が見つかりません");
+  if (reservation.storeId !== storeId) throw new Error("この予約は他の店舗用です");
+  if (reservation.status !== "pending") throw new Error("この予約は既に処理済みです");
+  if (new Date() > reservation.expiresAt) throw new Error("予約の有効期限が切れています");
+
+  // ステータス更新
+  const [updated] = await db.update(foodReservations)
+    .set({
+      status: "picked_up",
+      pickedUpAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(foodReservations.id, reservation.id))
+    .returning();
+
+  return updated;
+}
+
+/**
+ * 予約をキャンセル（在庫を戻す）
+ */
+export async function cancelFoodReservation(reservationId: number, userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+
+  await db.transaction(async (tx) => {
+    // 予約取得
+    const [reservation] = await tx.select()
+      .from(foodReservations)
+      .where(
+        and(
+          eq(foodReservations.id, reservationId),
+          eq(foodReservations.userId, userId)
+        )
+      )
+      .limit(1);
+
+    if (!reservation) throw new Error("予約が見つかりません");
+    if (reservation.status !== "pending") throw new Error("この予約はキャンセルできません");
+
+    // 在庫を戻す
+    await tx.update(foodItems)
+      .set({
+        remainingQuantity: sql`${foodItems.remainingQuantity} + ${reservation.quantity}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(foodItems.id, reservation.foodItemId));
+
+    // 予約をキャンセル状態に
+    await tx.update(foodReservations)
+      .set({
+        status: "cancelled",
+        updatedAt: new Date(),
+      })
+      .where(eq(foodReservations.id, reservationId));
+  });
 }

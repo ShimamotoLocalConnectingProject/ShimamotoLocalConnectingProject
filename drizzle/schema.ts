@@ -148,6 +148,13 @@ export const auditActionEnum = pgEnum("audit_action", [
   "stamp.scan",
   "reward.generate_token",
   "reward.verify",
+  // フードシェアリング
+  "food.create",
+  "food.update",
+  "food.delete",
+  "food.reserve",
+  "food.pickup",
+  "food.cancel",
   // 管理者
   "admin.access",
   "admin.stats_view",
@@ -174,3 +181,65 @@ export const auditLogs = pgTable("audit_logs", {
 
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = typeof auditLogs.$inferInsert;
+
+/**
+ * Food items table - フードシェアリング商品
+ */
+export const foodStatusEnum = pgEnum("food_status", ["available", "reserved", "sold_out", "expired"]);
+
+export const foodItems = pgTable("food_items", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  storeId: integer("storeId").notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  description: text("description"),
+  originalPrice: numeric("originalPrice", { precision: 10, scale: 0 }).notNull(),
+  discountedPrice: numeric("discountedPrice", { precision: 10, scale: 0 }).notNull(),
+  quantity: integer("quantity").notNull(),
+  remainingQuantity: integer("remainingQuantity").notNull(),
+  expiresAt: timestamp("expiresAt").notNull(), // 受取期限
+  imageUrl: varchar("imageUrl", { length: 500 }),
+  status: foodStatusEnum("status").default("available").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+}, (table) => ({
+  storeIdx: uniqueIndex("food_items_storeId_idx").on(table.storeId),
+  statusIdx: uniqueIndex("food_items_status_idx").on(table.status),
+  expiresIdx: uniqueIndex("food_items_expiresAt_idx").on(table.expiresAt),
+}));
+
+export type FoodItem = typeof foodItems.$inferSelect;
+export type InsertFoodItem = typeof foodItems.$inferInsert;
+
+/**
+ * Food reservations table - フードシェアリング予約
+ */
+export const reservationStatusEnum = pgEnum("reservation_status", [
+  "pending",
+  "confirmed", 
+  "picked_up",
+  "cancelled",
+  "expired"
+]);
+
+export const foodReservations = pgTable("food_reservations", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  foodItemId: integer("foodItemId").notNull(),
+  userId: integer("userId").notNull(),
+  storeId: integer("storeId").notNull(),
+  quantity: integer("quantity").notNull(),
+  reservationCode: varchar("reservationCode", { length: 64 }).notNull().unique(),
+  qrPayload: varchar("qrPayload", { length: 500 }).notNull(),
+  status: reservationStatusEnum("status").default("pending").notNull(),
+  expiresAt: timestamp("expiresAt").notNull(), // 予約有効期限（30分）
+  pickedUpAt: timestamp("pickedUpAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+}, (table) => ({
+  userIdx: uniqueIndex("food_reservations_userId_idx").on(table.userId),
+  foodItemIdx: uniqueIndex("food_reservations_foodItemId_idx").on(table.foodItemId),
+  statusIdx: uniqueIndex("food_reservations_status_idx").on(table.status),
+  codeIdx: uniqueIndex("food_reservations_code_idx").on(table.reservationCode),
+}));
+
+export type FoodReservation = typeof foodReservations.$inferSelect;
+export type InsertFoodReservation = typeof foodReservations.$inferInsert;

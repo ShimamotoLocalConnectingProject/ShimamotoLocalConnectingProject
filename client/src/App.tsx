@@ -7,6 +7,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import Admin from "./pages/Admin";
 import LoginPage from "./pages/Login";
+import FoodShare from "./pages/FoodShare";
 import { useEffect } from "react";
 
 function Router() {
@@ -33,6 +34,7 @@ function Router() {
       )} />
       <Route path={"/"} component={Home} />
       <Route path={"/admin"} component={Admin} />
+      <Route path={"/food-share"} component={FoodShare} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

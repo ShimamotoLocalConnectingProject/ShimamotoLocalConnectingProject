@@ -10,8 +10,9 @@ import { Slider } from "@/components/ui/slider";
 import { Skeleton } from "@/components/ui/skeleton";
 import QRDisplay from "@/components/QRDisplay";
 import QRScanner from "@/components/QRScanner";
+import FoodAdminPanel from "@/components/FoodAdminPanel";
 import { useState, useCallback } from "react";
-import { ArrowLeft, Plus, Pencil, Trash2, QrCode, Store, BarChart3, Loader2, ScanLine } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, QrCode, Store, BarChart3, Loader2, ScanLine, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
@@ -220,6 +221,10 @@ export default function Admin() {
             </TabsTrigger>
             <TabsTrigger value="add" className="flex-1 rounded-lg data-[state=active]:bg-gold-500 data-[state=active]:text-warm-900">
               店舗追加
+            </TabsTrigger>
+            <TabsTrigger value="food" className="flex-1 rounded-lg data-[state=active]:bg-gold-500 data-[state=active]:text-warm-900">
+              <ShoppingBag className="w-4 h-4 mr-1 inline" />
+              フード
             </TabsTrigger>
           </TabsList>
 
@@ -472,6 +477,11 @@ export default function Admin() {
                 </Button>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Food Sharing Tab */}
+          <TabsContent value="food">
+            <FoodAdminPanel stores={stores} />
           </TabsContent>
         </Tabs>
       </main>

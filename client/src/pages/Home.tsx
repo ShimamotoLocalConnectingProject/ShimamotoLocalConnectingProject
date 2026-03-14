@@ -9,7 +9,7 @@ import StampCard from "@/components/StampCard";
 import QRScanner from "@/components/QRScanner";
 import RewardQRDisplay from "@/components/RewardQRDisplay";
 import { useState, useMemo, useCallback, lazy, Suspense } from "react";
-import { Camera, LogOut, Settings, Gift, Coins, ChevronRight, Loader2 } from "lucide-react";
+import { Camera, LogOut, Settings, Gift, Coins, ChevronRight, Loader2, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
@@ -250,13 +250,22 @@ export default function Home() {
 
         {/* QR Scan Button */}
         {isAuthenticated && (
-          <button
-            onClick={() => setScanning(true)}
-            className="w-full p-4 rounded-2xl bg-gradient-to-r from-warm-900 to-warm-800 text-warm-50 text-base font-bold flex items-center justify-center gap-2.5 shadow-lg hover:shadow-xl transition-all active:scale-[0.98] mb-3"
-          >
-            <Camera className="w-5 h-5" />
-            QRコードをスキャン
-          </button>
+          <div className="space-y-2 mb-3">
+            <button
+              onClick={() => setScanning(true)}
+              className="w-full p-4 rounded-2xl bg-gradient-to-r from-warm-900 to-warm-800 text-warm-50 text-base font-bold flex items-center justify-center gap-2.5 shadow-lg hover:shadow-xl transition-all active:scale-[0.98]"
+            >
+              <Camera className="w-5 h-5" />
+              QRコードをスキャン
+            </button>
+            <button
+              onClick={() => navigate("/food-share")}
+              className="w-full p-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 text-white text-base font-bold flex items-center justify-center gap-2.5 shadow-lg hover:shadow-xl transition-all active:scale-[0.98]"
+            >
+              <ShoppingBag className="w-5 h-5" />
+              フードシェア 🍱
+            </button>
+          </div>
         )}
 
         {/* Reward banners */}
