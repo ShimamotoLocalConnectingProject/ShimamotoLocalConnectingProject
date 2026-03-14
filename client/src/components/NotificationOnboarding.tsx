@@ -60,11 +60,11 @@ export default function NotificationOnboarding({
           <div className="space-y-4">
             <p className="text-gray-600">
               お使いのブラウザは通知機能をサポートしていません。
-              フードシェア機能を利用するには、最新のブラウザ（Chrome、Firefox、Safari）をご使用ください。
+              最新のブラウザ（Chrome、Edge、Firefox、Safari）をご使用いただくと、新商品のお知らせを受け取れます。
             </p>
             {onSkip && (
               <Button onClick={onSkip} variant="outline" className="w-full">
-                スタンプ機能のみ使用する
+                通知なしで利用する
               </Button>
             )}
           </div>
@@ -123,25 +123,33 @@ export default function NotificationOnboarding({
           {/* Error message */}
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-600 flex items-center gap-2">
+              <p className="text-sm text-red-600 flex items-center gap-2 font-semibold">
                 <AlertCircle className="w-4 h-4" />
                 {error}
               </p>
-              <p className="text-xs text-red-500 mt-2">
-                ブラウザの設定で通知がブロックされている可能性があります。
-                設定を確認してください。
-              </p>
+              <div className="text-xs text-red-700 mt-3 space-y-2">
+                <p className="font-medium">✅ 解除方法（Edge / Chrome）：</p>
+                <ol className="list-decimal ml-4 space-y-1">
+                  <li>アドレスバー左の <strong>🔒マーク</strong> をクリック</li>
+                  <li><strong>「通知」</strong> を <strong>「許可」</strong> に変更</li>
+                  <li>ページをリロード（F5）</li>
+                </ol>
+                <p className="mt-2 text-red-600">
+                  または設定 → プライバシー → サイトの設定 → 通知 で
+                  <strong> slcpv1.onrender.com </strong>をブロックから削除
+                </p>
+              </div>
             </div>
           )}
 
           {/* Important notice */}
           <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-sm text-blue-900 font-medium mb-2">
-              📱 重要なお知らせ
+              📱 通知について
             </p>
             <p className="text-xs text-blue-700">
-              フードシェア機能（予約・お得情報）を利用するには、通知の許可が必要です。
-              通知は後から設定画面でいつでもOFFにできます。
+              新商品や期限切れ前のお得情報をリアルタイムで受け取れます。
+              通知は後から設定画面でいつでもON/OFFできます。通知なしでも商品の閲覧・予約は可能です。
             </p>
           </div>
         </div>
@@ -170,10 +178,10 @@ export default function NotificationOnboarding({
             <Button
               onClick={onSkip}
               variant="ghost"
-              className="text-gray-500 text-sm"
+              className="text-gray-500 text-sm hover:text-gray-700"
               disabled={loading}
             >
-              スタンプ機能のみ使用する
+              後で設定する（スキップ）
             </Button>
           )}
         </div>

@@ -113,14 +113,13 @@ export default function FoodShare() {
   const myReservations = myReservationsQuery.data ?? [];
   const stores = storesQuery.data ?? [];
 
-  // Check notification subscription status
+  // Check notification subscription status (non-blocking)
   useEffect(() => {
     if (isAuthenticated) {
       checkPushSubscription().then((subscribed) => {
         setIsSubscribed(subscribed);
-        if (!subscribed) {
-          setShowOnboarding(true);
-        }
+        // Don't force onboarding, let user access the page
+        // setShowOnboarding(true) is now optional
       });
     }
   }, [isAuthenticated]);
@@ -180,28 +179,40 @@ export default function FoodShare() {
 
   return (
     <>
-      {/* Notification Onboarding */}
-      <NotificationOnboarding
-        open={showOnboarding}
-        onSuccess={() => {
-          setShowOnboarding(false);
-          setIsSubscribed(true);
-        }}
-        onSkip={() => {
-          setShowOnboarding(false);
-          // Optionally redirect to home
-        }}
-      />
+      {/* Notification Onboarding - Optional, won't block access */}
+      {isSubscribed === false && (
+        <NotificationOnboarding
+          open={showOnboarding}
+          onSuccess={() => {
+            setShowOnboarding(false);
+            setIsSubscribed(true);
+          }}
+          onSkip={() => {
+            setShowOnboarding(false);
+          }}
+        />
+      )}
 
       <div className="min-h-screen bg-gradient-to-b from-amber-50 to-white p-6">
       {/* Header */}
       <div className="max-w-4xl mx-auto mb-6">
         <div className="flex items-center gap-3 mb-4">
           <ShoppingBag className="w-8 h-8 text-amber-600" />
-          <div>
+          <div className="flex-1">
             <h1 className="text-2xl font-bold text-gray-800">フードシェア</h1>
             <p className="text-sm text-gray-600">余剰食品をお得にゲット</p>
           </div>
+          {/* Notification Toggle Button */}
+          {isSubscribed === false && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowOnboarding(true)}
+              className="text-xs whitespace-nowrap border-amber-500 text-amber-700 hover:bg-amber-50"
+            >
+              🔔 通知ON
+            </Button>
+          )}
         </div>
 
         {/* Store filter */}
