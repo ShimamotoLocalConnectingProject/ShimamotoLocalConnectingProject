@@ -11,8 +11,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import QRDisplay from "@/components/QRDisplay";
 import QRScanner from "@/components/QRScanner";
 import FoodAdminPanel from "@/components/FoodAdminPanel";
+import NotificationSettings from "@/components/NotificationSettings";
 import { useState, useCallback } from "react";
-import { ArrowLeft, Plus, Pencil, Trash2, QrCode, Store, BarChart3, Loader2, ScanLine, ShoppingBag } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, QrCode, Store, BarChart3, Loader2, ScanLine, ShoppingBag, Bell } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
@@ -225,6 +226,10 @@ export default function Admin() {
             <TabsTrigger value="food" className="flex-1 rounded-lg data-[state=active]:bg-gold-500 data-[state=active]:text-warm-900">
               <ShoppingBag className="w-4 h-4 mr-1 inline" />
               フード
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="flex-1 rounded-lg data-[state=active]:bg-gold-500 data-[state=active]:text-warm-900">
+              <Bell className="w-4 h-4 mr-1 inline" />
+              通知設定
             </TabsTrigger>
           </TabsList>
 
@@ -482,6 +487,11 @@ export default function Admin() {
           {/* Food Sharing Tab */}
           <TabsContent value="food">
             <FoodAdminPanel stores={stores} />
+          </TabsContent>
+
+          {/* Notification Settings Tab */}
+          <TabsContent value="settings">
+            <NotificationSettings />
           </TabsContent>
         </Tabs>
       </main>

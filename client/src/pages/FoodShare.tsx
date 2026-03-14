@@ -5,13 +5,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ShoppingBag, Clock, Tag, MapPin, QrCode, X } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import QRCode from "qrcode";
-import { useEffect, useRef } from "react";
+import NotificationOnboarding from "@/components/NotificationOnboarding";
+import { checkPushSubscription } from "@/lib/push";
 
 interface FoodReservationQRProps {
   reservation: any;
@@ -98,6 +99,8 @@ export default function FoodShare() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [showReservationQR, setShowReservationQR] = useState<any>(null);
   const [selectedStore, setSelectedStore] = useState<number | undefined>(undefined);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null);
 
   // Queries
   const foodItemsQuery = trpc.food.list.useQuery({ storeId: selectedStore });
@@ -109,6 +112,18 @@ export default function FoodShare() {
   const foodItems = foodItemsQuery.data ?? [];
   const myReservations = myReservationsQuery.data ?? [];
   const stores = storesQuery.data ?? [];
+
+  // Check notification subscription status
+  useEffect(() => {
+    if (isAuthenticated) {
+      checkPushSubscription().then((subscribed) => {
+        setIsSubscribed(subscribed);
+        if (!subscribed) {
+          setShowOnboarding(true);
+        }
+      });
+    }
+  }, [isAuthenticated]);
 
   // Mutations
   const reserveMutation = trpc.food.reserve.useMutation({
@@ -164,7 +179,21 @@ export default function FoodShare() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-amber-50 to-white p-6">
+    <>
+      {/* Notification Onboarding */}
+      <NotificationOnboarding
+        open={showOnboarding}
+        onSuccess={() => {
+          setShowOnboarding(false);
+          setIsSubscribed(true);
+        }}
+        onSkip={() => {
+          setShowOnboarding(false);
+          // Optionally redirect to home
+        }}
+      />
+
+      <div className="min-h-screen bg-gradient-to-b from-amber-50 to-white p-6">
       {/* Header */}
       <div className="max-w-4xl mx-auto mb-6">
         <div className="flex items-center gap-3 mb-4">
@@ -406,6 +435,7 @@ export default function FoodShare() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </>
   );
 }
