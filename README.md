@@ -1,223 +1,263 @@
 # 島本スタンプアプリ
 
-地域のお店を応援するスタンプラリーアプリ
+地域のお店を応援するスタンプラリーアプリ + フードシェアリング機能
 
 ## 🎯 主な機能
 
+### スタンプラリー
 - **メール/パスワード認証** - シンプルな会員登録・ログイン
 - **OAuth認証** - Google / GitHub でのログイン対応
-- **QRコードスキャン** - 店舗訪問時にスタンプ獲得
-- **スタンプカード** - 来店回数に応じてスタンプ付与（1・2回目→1.0、3回目以降→0.5）
-- **ポイントシステム** - スタンプ獲得でコミュニティポイント付与
-- **特典管理** - 一定数のスタンプで特典使用可能
-- **管理者機能** - 店舗管理、QRコード生成、統計表示
+- **QRコードスキャン** - 各店舗固有のQRコードで永続利用
+- **スタンプ取得** - 来店時にQRスキャンでスタンプ獲得
+- **ポイントシステム** - スタンプ数に応じてポイント付与
+- **特典使用** - QRコード承認フローで店舗側が確認
 
-## 🛠️ 技術スタック
+### フードシェアリング（TABETE風）
+- **余剰食品登録** - 管理者が商品を登録（価格、数量、期限）
+- **在庫管理** - 楽観的ロックで在庫同期
+- **予約システム** - ユーザーが商品を予約（30分有効QR）
+- **受取確認** - 店舗がQRスキャンで受取完了
 
-### フロントエンド
-- React 19
-- TypeScript
-- Tailwind CSS v4
-- shadcn/ui コンポーネント
-- tRPC (型安全なAPI通信)
+### Web Push通知（NEW!）
+- **新規商品通知** - 商品登録時に全ユーザーへ即時通知
+- **期限アラート** - 商品期限2時間前にアラート
+- **予約リマインダー** - 予約期限10分前にリマインダー
+- **通知設定** - ユーザーが個別にON/OFF可能
+
+### セキュリティ
+- **エンタープライズグレード監査ログ** - 全操作を記録（append-only）
+- **GDPR準拠** - データ最小化・匿名化対応
+- **トランザクション制御** - データ整合性保証
+
+## 🚀 デプロイ情報
+
+- **本番URL**: https://slcpv1.onrender.com/
+- **GitHub**: https://github.com/ShimamotoLocalConnectingProject/ShimamotoLocalConnectingProject
+- **プラットフォーム**: Cloudflare Pages (予定) / Render (現在)
+- **データベース**: PostgreSQL (Render)
+- **通知**: Web Push API (VAPID)
+
+## 📐 技術スタック
+
+**フロントエンド**:
+- React 19.2.1
+- TypeScript 5.9.3
+- TailwindCSS v4
+- shadcn/ui
+- tRPC
 - Wouter (ルーティング)
+- date-fns (日付処理)
 
-### バックエンド
+**バックエンド**:
 - Express.js
 - tRPC
 - Passport.js (認証)
-- JWT (セッション管理)
 - Drizzle ORM
-- MySQL
+- PostgreSQL
+- web-push (Push通知)
+- JWT (トークン管理)
 
-### 認証システム
-- **メール/パスワード認証** - bcryptによるハッシュ化
-- **OAuth 2.0** - Google / GitHub 対応
-- **JWT** - ステートレスな認証トークン
+**インフラ**:
+- Render (Web Service + PostgreSQL)
+- GitHub Actions (CI/CD)
 
-## 📦 セットアップ
+## 🔧 開発環境セットアップ
 
-### 1. 依存関係のインストール
+### 1. 依存関係インストール
 
 ```bash
 npm install --legacy-peer-deps
 ```
 
-### 2. 環境変数の設定
+### 2. 環境変数設定
 
-`.env.example` をコピーして `.env` を作成：
-
-```bash
-cp .env.example .env
-```
-
-`.env` ファイルを編集：
+`.env` ファイルを作成：
 
 ```env
-# データベース接続
-DATABASE_URL=mysql://user:password@localhost:3306/shimamoto_stamp
+# Database
+DATABASE_URL=postgresql://user:password@host:5432/database
 
-# JWT シークレット（必須・本番環境では必ず変更）
-JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+# JWT
+JWT_SECRET=your-secret-key
 
-# OAuth設定（オプション）
+# OAuth (オプション)
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
-
 GITHUB_CLIENT_ID=your-github-client-id
 GITHUB_CLIENT_SECRET=your-github-client-secret
+
+# Web Push (必須)
+VAPID_PUBLIC_KEY=your-vapid-public-key
+VAPID_PRIVATE_KEY=your-vapid-private-key
+VAPID_SUBJECT=mailto:admin@your-domain.com
+
+# Server
+PORT=3000
+NODE_ENV=development
 ```
 
-### 3. データベースのセットアップ
+### 3. VAPIDキーの生成（Web Push通知用）
 
 ```bash
-# マイグレーション実行
-npm run db:push
+npx web-push generate-vapid-keys
 ```
 
-### 4. 開発サーバーの起動
+出力例:
+```
+Public Key: BL...
+Private Key: vN...
+```
+
+これらのキーを `.env` ファイルと Render の環境変数に設定してください。
+
+### 4. データベースマイグレーション
+
+```bash
+# ローカル
+npx drizzle-kit push
+
+# Render (Shell で実行)
+npx drizzle-kit push
+```
+
+### 5. 開発サーバー起動
 
 ```bash
 npm run dev
 ```
 
-アプリは `http://localhost:3000` で起動します。
-
-## 🔐 認証システム
-
-### メール/パスワード認証
-
-1. `/login` ページで新規登録またはログイン
-2. JWT トークンが発行され、ローカルストレージに保存
-3. 以降のAPIリクエストは `Authorization: Bearer <token>` ヘッダーで認証
-
-### OAuth認証
-
-Google または GitHub でログイン可能：
-
-1. `/api/auth/google` または `/api/auth/github` にアクセス
-2. OAuth プロバイダーで認証
-3. コールバック後、JWT トークンが発行される
-
-### OAuth プロバイダーの設定
-
-#### Google OAuth
-
-1. [Google Cloud Console](https://console.cloud.google.com/) でプロジェクト作成
-2. OAuth 2.0 クライアント ID を作成
-3. 承認済みリダイレクト URI に `http://localhost:3000/api/auth/google/callback` を追加
-4. Client ID と Client Secret を `.env` に設定
-
-#### GitHub OAuth
-
-1. [GitHub Settings > Developer settings > OAuth Apps](https://github.com/settings/developers) で新規アプリ作成
-2. Authorization callback URL に `http://localhost:3000/api/auth/github/callback` を設定
-3. Client ID と Client Secret を `.env` に設定
-
-## 📁 プロジェクト構造
-
-```
-shimamoto-stamp-app/
-├── client/                 # フロントエンド
-│   ├── src/
-│   │   ├── pages/          # ページコンポーネント
-│   │   │   ├── Login.tsx   # ログイン/登録ページ
-│   │   │   ├── Home.tsx    # ユーザーホーム
-│   │   │   └── Admin.tsx   # 管理者画面
-│   │   ├── components/     # 再利用可能なコンポーネント
-│   │   └── _core/hooks/    # カスタムフック
-│   └── index.html
-├── server/                 # バックエンド
-│   ├── auth/               # 認証システム
-│   │   ├── authService.ts  # JWT生成・検証
-│   │   ├── authDb.ts       # 認証関連DB操作
-│   │   ├── authRoutes.ts   # 認証エンドポイント
-│   │   ├── authMiddleware.ts # JWT認証ミドルウェア
-│   │   └── passport.ts     # Passport.js設定
-│   ├── _core/              # コアサーバー機能
-│   ├── db.ts               # データベース操作
-│   └── routers.ts          # tRPC ルーター
-├── drizzle/                # データベーススキーマ
-│   └── schema.ts
-└── package.json
-```
-
-## 🗄️ データベーススキーマ
-
-### users テーブル
-- id, email, passwordHash, name, role, createdAt, updatedAt
-
-### oauth_accounts テーブル  
-- id, userId, provider, providerId, accessToken, refreshToken
-
-### stores テーブル
-- 店舗情報（名前、カテゴリ、特典など）
-
-### visits テーブル
-- 来店記録（スタンプ）
-
-### point_balance, point_history テーブル
-- ポイント残高と履歴
-
-### reward_usage テーブル
-- 特典使用履歴
-
-## 🚀 本番環境デプロイ
-
-### 環境変数の設定
-
-本番環境では以下を必ず設定：
-
-- `JWT_SECRET`: 強力なランダムな文字列に変更
-- `DATABASE_URL`: 本番データベースのURL
-- `NODE_ENV=production`
-
-### ビルドとデプロイ
+または PM2 で：
 
 ```bash
-# ビルド
 npm run build
-
-# 本番サーバー起動
-npm start
+pm2 start ecosystem.config.cjs
 ```
 
-## 📝 API エンドポイント
+## 📦 デプロイ手順
 
-### 認証 (`/api/auth`)
-
-- `POST /api/auth/register` - 新規登録
-- `POST /api/auth/login` - ログイン
-- `GET /api/auth/me` - 現在のユーザー情報取得
-- `POST /api/auth/logout` - ログアウト
-- `GET /api/auth/google` - Google OAuth開始
-- `GET /api/auth/github` - GitHub OAuth開始
-
-### tRPC (`/api/trpc`)
-
-- `auth.me` - ユーザー情報取得
-- `store.*` - 店舗操作
-- `qr.*` - QRコード生成・スキャン
-- `stamp.*` - スタンプ情報
-- `reward.*` - 特典使用
-- `admin.*` - 管理者機能
-
-## 🧪 テスト
+### 1. GitHubにプッシュ
 
 ```bash
-npm test
+git add .
+git commit -m "Deploy"
+git push origin main
 ```
 
-## 📜 ライセンス
+### 2. Render で自動デプロイ
 
-MIT
+- Renderが自動的にビルド＆デプロイ（5〜10分）
+- デプロイ完了後、Shellでマイグレーション実行
 
-## 🙏 貢献
+### 3. 環境変数設定（Render）
 
-プルリクエストを歓迎します！
+Render Dashboard → Environment で以下を設定：
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+- `DATABASE_URL`: 自動設定済み（PostgreSQL接続文字列）
+- `JWT_SECRET`: ランダムな文字列
+- `VAPID_PUBLIC_KEY`: 生成したVAPID公開鍵
+- `VAPID_PRIVATE_KEY`: 生成したVAPID秘密鍵
+- `VAPID_SUBJECT`: `mailto:your-email@example.com`
+- OAuth認証用の環境変数（オプション）
+
+### 4. VAPIDキー設定（重要）
+
+**Render Shell で実行**:
+
+```bash
+# 1. VAPIDキー生成
+npx web-push generate-vapid-keys
+
+# 2. Render Dashboard → Environment に追加
+# VAPID_PUBLIC_KEY=BL...
+# VAPID_PRIVATE_KEY=vN...
+# VAPID_SUBJECT=mailto:admin@your-domain.com
+
+# 3. サービス再起動
+# Render Dashboard → Manual Deploy → Deploy latest commit
+```
+
+**設定しないと通知機能が動作しません！**
+
+## 🧪 動作確認
+
+### スタンプ機能
+1. ログイン
+2. 「QRコードをスキャン」ボタン
+3. 店舗QRをスキャン → スタンプ取得
+4. 特典が貯まったら「特典を使用する」→ QR表示
+5. 管理画面で「特典承認」→ QRスキャン
+
+### フードシェア機能
+1. 管理画面 → 「フード」タブ → 「新規登録」
+2. 商品情報入力（例: お弁当セット、¥800→¥400、3個、18:00まで）
+3. ユーザー側で「フードシェア 🍱」ボタン
+4. 商品一覧 → 予約 → QRコード表示
+5. 管理画面 → 「予約一覧」→ QRスキャン → 受取確認
+
+### Push通知機能
+1. フードシェア画面初回アクセス
+2. オンボーディング画面 → 「通知を許可して始める」
+3. ブラウザの通知許可ダイアログ → 「許可」
+4. 管理画面で商品登録 → 全ユーザーに通知送信
+5. 管理画面 → 「通知設定」タブ → ON/OFF切り替え
+
+## 📊 データベーススキーマ
+
+### 主要テーブル
+
+- **users** - ユーザー情報（email, パスワード, role）
+- **oauth_accounts** - OAuth連携情報
+- **stores** - 参加店舗情報
+- **visits** - 来店記録（スタンプ）
+- **point_balance** - ポイント残高
+- **point_history** - ポイント履歴
+- **reward_tokens** - 特典使用トークン（5分有効）
+- **food_items** - フードシェア商品
+- **food_reservations** - フードシェア予約
+- **push_subscriptions** - Push通知登録
+- **notification_preferences** - 通知設定
+- **audit_logs** - 監査ログ（append-only）
+
+## 🔐 セキュリティ対策
+
+- **認証**: JWT + HttpOnly Cookie
+- **パスワード**: bcrypt ハッシュ化
+- **トークン**: UUID v4 + 有効期限
+- **在庫管理**: トランザクション + 楽観的ロック
+- **監査ログ**: 全操作記録（削除不可）
+- **通知**: VAPID署名 + HTTPS必須
+
+## 🎓 今後の改善案
+
+- [x] Push通知システム（新規商品・期限アラート・予約リマインダー）
+- [x] オンボーディング画面（通知許可フロー）
+- [x] 通知設定画面
+- [ ] Cloudflare R2画像アップロード（商品画像保存）
+- [ ] ユーザー評価システム（店舗・商品レビュー）
+- [ ] お気に入り機能（店舗・商品ブックマーク）
+- [ ] 統計ダッシュボード（来店数・売上グラフ）
+- [ ] クーポン機能（期間限定特別割引）
+- [ ] PWA対応（オフライン動作・ホーム画面追加）
+- [ ] 多言語対応（英語・中国語）
+
+## 📝 開発ログ
+
+- 2024-XX-XX: プロジェクト開始
+- 2024-XX-XX: スタンプラリー機能完成
+- 2024-XX-XX: フードシェアリング機能追加
+- 2024-XX-XX: エンタープライズ監査ログ実装
+- 2024-XX-XX: Web Push通知システム完成
+- 2024-XX-XX: Render本番デプロイ完了
+
+## 📄 ライセンス
+
+MIT License
+
+## 👥 開発者
+
+- @inomoto (大学生・学習塾アルバイト)
+
+---
+
+**質問・バグ報告**: GitHub Issues
+**連絡先**: admin@shimamoto-stamp.app
