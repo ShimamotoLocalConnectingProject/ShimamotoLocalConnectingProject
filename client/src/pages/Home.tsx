@@ -343,10 +343,10 @@ export default function Home() {
           <DialogFooter className="flex flex-col gap-2 sm:flex-col">
             <Button
               onClick={() => shownReward && handleUseReward(shownReward)}
-              disabled={useRewardMutation.isPending}
+              disabled={generateTokenMutation.isPending}
               className="w-full bg-gradient-to-r from-warm-900 to-warm-800 text-warm-50 hover:from-warm-800 hover:to-warm-700 rounded-xl"
             >
-              {useRewardMutation.isPending ? (
+              {generateTokenMutation.isPending ? (
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
               ) : null}
               特典を使用する
