@@ -166,6 +166,65 @@ export const appRouter = router({
   // Reward routes
   // ============================================================
   reward: router({
+    // Generate QR code token for reward redemption (user side)
+    generateToken: protectedProcedure
+      .input(z.object({ storeId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const userId = ctx.user.id;
+        const { storeId } = input;
+
+        // Get store
+        const store = await db.getStoreById(storeId);
+        if (!store) throw new Error("店舗が見つかりません");
+
+        // Check if user has enough stamps
+        const totalStamps = await db.getTotalStampsForStore(userId, storeId);
+        if (totalStamps < store.rewardThreshold) {
+          throw new Error(`特典を使用するには${store.rewardThreshold}スタンプ必要です（現在: ${totalStamps}）`);
+        }
+
+        // Generate token
+        const token = await db.generateRewardToken(userId, storeId);
+        
+        // Create QR payload
+        const qrPayload = `shimamoto://reward?token=${token}`;
+
+        return {
+          token,
+          qrPayload,
+          storeName: store.name,
+          expiresIn: 300, // 5 minutes in seconds
+        };
+      }),
+
+    // Verify and use reward token (store side)
+    verifyToken: adminProcedure
+      .input(z.object({ token: z.string(), storeId: z.number() }))
+      .mutation(async ({ input }) => {
+        const { token, storeId } = input;
+
+        // Verify token
+        const rewardToken = await db.verifyAndUseRewardToken(token, storeId);
+        const userId = rewardToken.userId;
+
+        // Get store
+        const store = await db.getStoreById(storeId);
+        if (!store) throw new Error("店舗が見つかりません");
+
+        // Record reward usage
+        await db.recordRewardUsage(userId, storeId);
+
+        // Reset stamps for this store
+        await db.deleteVisitsForStore(userId, storeId);
+
+        return {
+          success: true,
+          storeName: store.name,
+          userId,
+        };
+      }),
+
+    // Legacy: Direct use without token (deprecated, kept for backward compatibility)
     use: protectedProcedure
       .input(z.object({ storeId: z.number() }))
       .mutation(async ({ ctx, input }) => {

@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, sql, desc, count, sum } from "drizzle-orm";
+import { eq, and, gte, lte, sql, desc, count, sum, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import {
@@ -8,6 +8,7 @@ import {
   pointBalance,
   pointHistory,
   rewardUsage,
+  rewardTokens, InsertRewardToken,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import crypto from "crypto";
@@ -316,4 +317,82 @@ export async function getStats() {
     stampCount: stampResult[0]?.cnt ?? 0,
     rewardCount: rewardResult[0]?.cnt ?? 0,
   };
+}
+
+// ============================================================
+// Reward Token helpers (QR code redemption)
+// ============================================================
+
+/**
+ * Generate a unique reward token for QR code redemption
+ */
+export async function generateRewardToken(userId: number, storeId: number): Promise<string> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Invalidate any existing unused tokens for this user+store
+  await db.update(rewardTokens)
+    .set({ usedAt: new Date() })
+    .where(
+      and(
+        eq(rewardTokens.userId, userId),
+        eq(rewardTokens.storeId, storeId),
+        isNull(rewardTokens.usedAt)
+      )
+    );
+
+  // Generate new token (UUID v4)
+  const token = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+  await db.insert(rewardTokens).values({
+    userId,
+    storeId,
+    token,
+    expiresAt,
+  });
+
+  return token;
+}
+
+/**
+ * Verify and use a reward token
+ * Returns token data if valid, throws error otherwise
+ */
+export async function verifyAndUseRewardToken(token: string, storeId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Find token
+  const result = await db.select()
+    .from(rewardTokens)
+    .where(eq(rewardTokens.token, token))
+    .limit(1);
+
+  const rewardToken = result[0];
+  if (!rewardToken) {
+    throw new Error("無効なトークンです");
+  }
+
+  // Check if already used
+  if (rewardToken.usedAt) {
+    throw new Error("このトークンは既に使用済みです");
+  }
+
+  // Check expiration
+  if (new Date() > rewardToken.expiresAt) {
+    throw new Error("トークンの有効期限が切れています");
+  }
+
+  // Check store match
+  if (rewardToken.storeId !== storeId) {
+    throw new Error("このトークンは他の店舗用です");
+  }
+
+  // Mark as used
+  await db.update(rewardTokens)
+    .set({ usedAt: new Date() })
+    .where(eq(rewardTokens.id, rewardToken.id));
+
+  return rewardToken;
 }

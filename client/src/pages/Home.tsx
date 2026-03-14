@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import StampCard from "@/components/StampCard";
 import QRScanner from "@/components/QRScanner";
+import RewardQRDisplay from "@/components/RewardQRDisplay";
 import { useState, useMemo, useCallback, lazy, Suspense } from "react";
 import { Camera, LogOut, Settings, Gift, Coins, ChevronRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -19,6 +20,7 @@ export default function Home() {
   const [activeCategory, setActiveCategory] = useState("すべて");
   const [shownReward, setShownReward] = useState<any>(null);
   const [scanResult, setScanResult] = useState<any>(null);
+  const [rewardQR, setRewardQR] = useState<any>(null);
 
   // Data queries
   const storesQuery = trpc.store.list.useQuery();
@@ -41,11 +43,11 @@ export default function Home() {
     },
   });
 
-  const useRewardMutation = trpc.reward.use.useMutation({
-    onSuccess: () => {
-      stampQuery.refetch();
+  // Generate reward QR token
+  const generateTokenMutation = trpc.reward.generateToken.useMutation({
+    onSuccess: (data) => {
+      setRewardQR(data);
       setShownReward(null);
-      toast.success("特典を使用しました！");
     },
     onError: (err) => {
       toast.error(err.message);
@@ -101,9 +103,9 @@ export default function Home() {
 
   const handleUseReward = useCallback(
     (store: any) => {
-      useRewardMutation.mutate({ storeId: store.id });
+      generateTokenMutation.mutate({ storeId: store.id });
     },
-    [useRewardMutation]
+    [generateTokenMutation]
   );
 
   // Loading state
@@ -389,6 +391,19 @@ export default function Home() {
           </Button>
         </DialogContent>
       </Dialog>
+
+      {/* Reward QR Display Modal */}
+      {rewardQR && (
+        <RewardQRDisplay
+          qrPayload={rewardQR.qrPayload}
+          storeName={rewardQR.storeName}
+          expiresIn={rewardQR.expiresIn}
+          onClose={() => {
+            setRewardQR(null);
+            stampQuery.refetch();
+          }}
+        />
+      )}
     </div>
   );
 }

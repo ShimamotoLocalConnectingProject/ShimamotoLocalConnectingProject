@@ -9,8 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { Skeleton } from "@/components/ui/skeleton";
 import QRDisplay from "@/components/QRDisplay";
+import QRScanner from "@/components/QRScanner";
 import { useState, useCallback } from "react";
-import { ArrowLeft, Plus, Pencil, Trash2, QrCode, Store, BarChart3, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, QrCode, Store, BarChart3, Loader2, ScanLine } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
@@ -31,6 +32,8 @@ export default function Admin() {
     rewardThreshold: 5,
   });
   const [qrData, setQrData] = useState<{ payload: string; storeName: string } | null>(null);
+  const [scanningReward, setScanningReward] = useState(false);
+  const [selectedStoreForScan, setSelectedStoreForScan] = useState<number | null>(null);
 
   // Queries
   const storesQuery = trpc.store.list.useQuery();
@@ -73,6 +76,39 @@ export default function Admin() {
     },
     onError: (err) => toast.error(err.message),
   });
+
+  const verifyTokenMutation = trpc.reward.verifyToken.useMutation({
+    onSuccess: (data) => {
+      setScanningReward(false);
+      setSelectedStoreForScan(null);
+      toast.success(`${data.storeName}の特典を承認しました！`);
+    },
+    onError: (err) => {
+      toast.error(err.message);
+    },
+  });
+
+  const handleRewardQRScan = useCallback(
+    (raw: string) => {
+      setScanningReward(false);
+      if (!selectedStoreForScan) {
+        toast.error("店舗を選択してください");
+        return;
+      }
+      try {
+        const url = new URL(raw.replace("shimamoto://reward", "https://dummy/reward"));
+        const token = url.searchParams.get("token");
+        if (!token) {
+          toast.error("無効なQRコードです");
+          return;
+        }
+        verifyTokenMutation.mutate({ token, storeId: selectedStoreForScan });
+      } catch {
+        toast.error("QRコードの読み取りに失敗しました");
+      }
+    },
+    [selectedStoreForScan, verifyTokenMutation]
+  );
 
   const handleAddStore = useCallback(() => {
     if (!newStore.name || !newStore.category) {
@@ -198,16 +234,30 @@ export default function Admin() {
                       <div className="font-bold text-sm text-warm-900">{store.name}</div>
                       <div className="text-xs text-warm-500">{store.category}</div>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => generateQrMutation.mutate({ storeId: store.id })}
-                      disabled={generateQrMutation.isPending}
-                      className="border-gold-500/50 text-warm-600 hover:bg-gold-500/10 text-xs rounded-lg"
-                    >
-                      <QrCode className="w-3.5 h-3.5 mr-1" />
-                      QR表示
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedStoreForScan(store.id);
+                          setScanningReward(true);
+                        }}
+                        className="border-green-500/50 text-green-600 hover:bg-green-500/10 text-xs rounded-lg"
+                      >
+                        <ScanLine className="w-3.5 h-3.5 mr-1" />
+                        特典承認
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => generateQrMutation.mutate({ storeId: store.id })}
+                        disabled={generateQrMutation.isPending}
+                        className="border-gold-500/50 text-warm-600 hover:bg-gold-500/10 text-xs rounded-lg"
+                      >
+                        <QrCode className="w-3.5 h-3.5 mr-1" />
+                        QR表示
+                      </Button>
+                    </div>
                   </div>
 
                   {editingStore?.id === store.id ? (
@@ -445,6 +495,17 @@ export default function Admin() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Reward QR Scanner */}
+      {scanningReward && (
+        <QRScanner
+          onScan={handleRewardQRScan}
+          onClose={() => {
+            setScanningReward(false);
+            setSelectedStoreForScan(null);
+          }}
+        />
+      )}
     </div>
   );
 }

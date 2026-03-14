@@ -112,3 +112,19 @@ export const rewardUsage = pgTable("reward_usage", {
 });
 
 export type RewardUsageEntry = typeof rewardUsage.$inferSelect;
+
+/**
+ * Reward tokens table - 特典使用トークン（QRコード方式）
+ */
+export const rewardTokens = pgTable("reward_tokens", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: integer("userId").notNull(),
+  storeId: integer("storeId").notNull(),
+  token: varchar("token", { length: 64 }).notNull().unique(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  usedAt: timestamp("usedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type RewardToken = typeof rewardTokens.$inferSelect;
+export type InsertRewardToken = typeof rewardTokens.$inferInsert;
