@@ -86,13 +86,12 @@ export default function Home() {
       try {
         const url = new URL(raw.replace("shimamoto://stamp", "https://dummy/stamp"));
         const storeId = url.searchParams.get("store_id");
-        const token = url.searchParams.get("token");
-        const date = url.searchParams.get("date");
-        if (!storeId || !token || !date) {
+        if (!storeId) {
           toast.error("無効なQRコードです");
           return;
         }
-        scanMutation.mutate({ storeId: parseInt(storeId), token, date });
+        // 新しいシステム: storeIdのみで送信
+        scanMutation.mutate({ storeId: parseInt(storeId) });
       } catch {
         toast.error("QRコードの読み取りに失敗しました");
       }

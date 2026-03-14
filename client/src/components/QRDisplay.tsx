@@ -28,7 +28,7 @@ export default function QRDisplay({ payload, storeName }: QRDisplayProps) {
         className="rounded-xl border-2 border-gold-500/30 mx-auto"
       />
       <div className="text-xs text-warm-500 mt-2">
-        本日のQRコード（毎日自動更新）
+        店舗専用QRコード（印刷して掲示してください）
       </div>
       <div className="text-sm font-bold text-warm-900 mt-1">{storeName}</div>
     </div>

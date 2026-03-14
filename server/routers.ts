@@ -75,37 +75,23 @@ export const appRouter = router({
         const store = await db.getStoreById(input.storeId);
         if (!store) throw new Error("Store not found");
 
-        const today = new Date().toISOString().split("T")[0];
-        const token = db.generateQrToken(store.id, store.qrSecret, today);
-        const qrPayload = `shimamoto://stamp?store_id=${store.id}&token=${token}&date=${today}`;
+        // Simple QR code: just store ID (永続的、印刷1回のみ)
+        const qrPayload = `shimamoto://stamp?store_id=${store.id}`;
 
-        return { token, qrPayload, validUntil: today, storeName: store.name };
+        return { qrPayload, storeName: store.name, storeId: store.id };
       }),
 
     scan: protectedProcedure
       .input(z.object({
         storeId: z.number(),
-        token: z.string(),
-        date: z.string(),
       }))
       .mutation(async ({ ctx, input }) => {
         const userId = ctx.user.id;
-        const { storeId, token, date } = input;
+        const { storeId } = input;
 
-        // Get store with secret
+        // Get store
         const store = await db.getStoreById(storeId);
         if (!store) throw new Error("店舗が見つかりません");
-
-        // Verify token
-        if (!db.verifyQrToken(store.id, store.qrSecret, date, token)) {
-          throw new Error("QRコードが無効または期限切れです");
-        }
-
-        // Check today's date matches
-        const today = new Date().toISOString().split("T")[0];
-        if (date !== today) {
-          throw new Error("QRコードの有効期限が切れています");
-        }
 
         // Check if already stamped today
         const alreadyStamped = await db.hasStampedToday(userId, storeId);
@@ -119,8 +105,9 @@ export const appRouter = router({
         const stampValue = db.calcStampValue(newVisitNumber);
         const pointsDelta = stampValue * 10;
 
-        // Record visit
-        await db.recordVisit(userId, storeId, newVisitNumber, stampValue, token);
+        // Record visit (token is now just storeId for tracking)
+        const visitToken = `store-${storeId}-${new Date().toISOString()}`;
+        await db.recordVisit(userId, storeId, newVisitNumber, stampValue, visitToken);
 
         // Add points
         const newBalance = await db.addPoints(userId, storeId, pointsDelta, `${store.name}来店（${newVisitNumber}回目）`);
