@@ -12,6 +12,8 @@ import {
   auditLogs, InsertAuditLog,
   foodItems, InsertFoodItem, FoodItem,
   foodReservations, InsertFoodReservation, FoodReservation,
+  pushSubscriptions, InsertPushSubscription, PushSubscription,
+  notificationPreferences, InsertNotificationPreference, NotificationPreference,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import crypto from "crypto";
@@ -740,4 +742,123 @@ export async function cancelFoodReservation(reservationId: number, userId: numbe
       })
       .where(eq(foodReservations.id, reservationId));
   });
+}
+
+// ============================================================
+// Push Notification helpers
+// ============================================================
+
+/**
+ * Push通知サブスクリプションを登録
+ */
+export async function savePushSubscription(
+  userId: number,
+  subscription: { endpoint: string; keys: { p256dh: string; auth: string } }
+): Promise<PushSubscription> {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+
+  // 既存のサブスクリプションを削除（同一endpointは1つのみ）
+  await db.delete(pushSubscriptions)
+    .where(eq(pushSubscriptions.endpoint, subscription.endpoint));
+
+  // 新規登録
+  const [newSub] = await db.insert(pushSubscriptions)
+    .values({
+      userId,
+      endpoint: subscription.endpoint,
+      p256dh: subscription.keys.p256dh,
+      auth: subscription.keys.auth,
+    })
+    .returning();
+
+  return newSub;
+}
+
+/**
+ * ユーザーのPush通知サブスクリプションを取得
+ */
+export async function getUserPushSubscriptions(userId: number): Promise<PushSubscription[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select()
+    .from(pushSubscriptions)
+    .where(eq(pushSubscriptions.userId, userId));
+}
+
+/**
+ * 全てのPush通知サブスクリプションを取得
+ */
+export async function getAllPushSubscriptions(): Promise<PushSubscription[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select().from(pushSubscriptions);
+}
+
+/**
+ * Push通知サブスクリプションを削除
+ */
+export async function deletePushSubscription(endpoint: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+
+  await db.delete(pushSubscriptions)
+    .where(eq(pushSubscriptions.endpoint, endpoint));
+}
+
+/**
+ * 通知設定を取得（なければデフォルト値で作成）
+ */
+export async function getNotificationPreferences(userId: number): Promise<NotificationPreference> {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+
+  const [prefs] = await db.select()
+    .from(notificationPreferences)
+    .where(eq(notificationPreferences.userId, userId))
+    .limit(1);
+
+  if (prefs) return prefs;
+
+  // 存在しない場合はデフォルト値で作成
+  const [newPrefs] = await db.insert(notificationPreferences)
+    .values({ userId })
+    .returning();
+
+  return newPrefs;
+}
+
+/**
+ * 通知設定を更新
+ */
+export async function updateNotificationPreferences(
+  userId: number,
+  updates: {
+    newProductsEnabled?: boolean;
+    expiringItemsEnabled?: boolean;
+    reservationRemindersEnabled?: boolean;
+  }
+): Promise<NotificationPreference> {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+
+  const setValues: any = { updatedAt: new Date() };
+  if (updates.newProductsEnabled !== undefined) {
+    setValues.newProductsEnabled = updates.newProductsEnabled ? 1 : 0;
+  }
+  if (updates.expiringItemsEnabled !== undefined) {
+    setValues.expiringItemsEnabled = updates.expiringItemsEnabled ? 1 : 0;
+  }
+  if (updates.reservationRemindersEnabled !== undefined) {
+    setValues.reservationRemindersEnabled = updates.reservationRemindersEnabled ? 1 : 0;
+  }
+
+  const [updated] = await db.update(notificationPreferences)
+    .set(setValues)
+    .where(eq(notificationPreferences.userId, userId))
+    .returning();
+
+  return updated;
 }

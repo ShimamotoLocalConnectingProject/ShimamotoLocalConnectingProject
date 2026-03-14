@@ -15,6 +15,13 @@
       "when": 1773484882582,
       "tag": "0001_fantastic_phalanx",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773487091289,
+      "tag": "0002_bumpy_patch",
+      "breakpoints": true
     }
   ]
 }

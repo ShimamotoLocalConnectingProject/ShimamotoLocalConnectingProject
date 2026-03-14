@@ -155,6 +155,11 @@ export const auditActionEnum = pgEnum("audit_action", [
   "food.reserve",
   "food.pickup",
   "food.cancel",
+  // 通知
+  "notification.subscribe",
+  "notification.unsubscribe",
+  "notification.sent",
+  "notification.preference_update",
   // 管理者
   "admin.access",
   "admin.stats_view",
@@ -243,3 +248,36 @@ export const foodReservations = pgTable("food_reservations", {
 
 export type FoodReservation = typeof foodReservations.$inferSelect;
 export type InsertFoodReservation = typeof foodReservations.$inferInsert;
+
+/**
+ * Push subscriptions table - Web Push通知登録
+ */
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: integer("userId").notNull(),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+}, (table) => ({
+  userIdx: uniqueIndex("push_subscriptions_userId_idx").on(table.userId),
+}));
+
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+export type InsertPushSubscription = typeof pushSubscriptions.$inferInsert;
+
+/**
+ * Notification preferences table - 通知設定
+ */
+export const notificationPreferences = pgTable("notification_preferences", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: integer("userId").notNull().unique(),
+  newProductsEnabled: integer("newProductsEnabled").notNull().default(1), // 1=ON, 0=OFF
+  expiringItemsEnabled: integer("expiringItemsEnabled").notNull().default(1),
+  reservationRemindersEnabled: integer("reservationRemindersEnabled").notNull().default(1),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type NotificationPreference = typeof notificationPreferences.$inferSelect;
+export type InsertNotificationPreference = typeof notificationPreferences.$inferInsert;

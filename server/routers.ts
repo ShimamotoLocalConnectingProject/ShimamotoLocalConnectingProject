@@ -3,6 +3,7 @@ import { publicProcedure, protectedProcedure, adminProcedure, router } from "./_
 import { z } from "zod";
 import * as db from "./db";
 import { logAudit } from "./db";
+import * as push from "./push";
 
 export const appRouter = router({
   system: systemRouter,
@@ -311,6 +312,15 @@ export const appRouter = router({
           success: true,
         });
 
+        // Send push notification to all users
+        const store = await db.getStoreById(input.storeId);
+        if (store) {
+          // Non-blocking notification
+          push.notifyNewFoodItem(item, store).catch((err) => {
+            console.error("[Push] Failed to send notification:", err);
+          });
+        }
+
         return item;
       }),
 
@@ -439,6 +449,106 @@ export const appRouter = router({
 
         return { success: true };
       }),
+  }),
+
+  // ============================================================
+  // Push Notification routes
+  // ============================================================
+  notification: router({
+    // Get VAPID public key
+    vapidPublicKey: publicProcedure.query(() => {
+      return { publicKey: push.getVapidPublicKey() };
+    }),
+
+    // Subscribe to push notifications
+    subscribe: protectedProcedure
+      .input(z.object({
+        endpoint: z.string(),
+        keys: z.object({
+          p256dh: z.string(),
+          auth: z.string(),
+        }),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const subscription = await db.savePushSubscription(ctx.user.id, input);
+
+        // Log audit
+        await logAudit({
+          action: "notification.subscribe",
+          userId: ctx.user.id,
+          userEmail: ctx.user.email,
+          resource: `push:${subscription.id}`,
+          success: true,
+        });
+
+        return { success: true, subscription };
+      }),
+
+    // Unsubscribe from push notifications
+    unsubscribe: protectedProcedure
+      .input(z.object({ endpoint: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        await db.deletePushSubscription(input.endpoint);
+
+        // Log audit
+        await logAudit({
+          action: "notification.unsubscribe",
+          userId: ctx.user.id,
+          userEmail: ctx.user.email,
+          resource: `endpoint:${input.endpoint}`,
+          success: true,
+        });
+
+        return { success: true };
+      }),
+
+    // Get notification preferences
+    preferences: protectedProcedure.query(async ({ ctx }) => {
+      const prefs = await db.getNotificationPreferences(ctx.user.id);
+      return {
+        newProductsEnabled: prefs.newProductsEnabled === 1,
+        expiringItemsEnabled: prefs.expiringItemsEnabled === 1,
+        reservationRemindersEnabled: prefs.reservationRemindersEnabled === 1,
+      };
+    }),
+
+    // Update notification preferences
+    updatePreferences: protectedProcedure
+      .input(z.object({
+        newProductsEnabled: z.boolean().optional(),
+        expiringItemsEnabled: z.boolean().optional(),
+        reservationRemindersEnabled: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const updated = await db.updateNotificationPreferences(ctx.user.id, input);
+
+        // Log audit
+        await logAudit({
+          action: "notification.preference_update",
+          userId: ctx.user.id,
+          userEmail: ctx.user.email,
+          metadata: input,
+          success: true,
+        });
+
+        return {
+          newProductsEnabled: updated.newProductsEnabled === 1,
+          expiringItemsEnabled: updated.expiringItemsEnabled === 1,
+          reservationRemindersEnabled: updated.reservationRemindersEnabled === 1,
+        };
+      }),
+
+    // Test notification (for development)
+    test: protectedProcedure.mutation(async ({ ctx }) => {
+      const result = await push.sendPushNotificationToUser(ctx.user.id, {
+        title: "🧪 テスト通知",
+        body: "通知が正常に動作しています！",
+        icon: "/icon-192.png",
+        data: { url: "/" },
+      });
+
+      return result;
+    }),
   }),
 });
 
