@@ -128,3 +128,49 @@ export const rewardTokens = pgTable("reward_tokens", {
 
 export type RewardToken = typeof rewardTokens.$inferSelect;
 export type InsertRewardToken = typeof rewardTokens.$inferInsert;
+
+/**
+ * Audit logs table - 監査ログ（エンタープライズグレード）
+ * すべての重要なアクションを記録（append-only、削除不可）
+ */
+export const auditActionEnum = pgEnum("audit_action", [
+  // 認証系
+  "auth.register",
+  "auth.login",
+  "auth.logout",
+  "auth.login_failed",
+  // 店舗管理
+  "store.create",
+  "store.update",
+  "store.delete",
+  "store.qr_generated",
+  // スタンプ・特典
+  "stamp.scan",
+  "reward.generate_token",
+  "reward.verify",
+  // 管理者
+  "admin.access",
+  "admin.stats_view",
+  "admin.audit_log_view",
+]);
+
+export const auditLogs = pgTable("audit_logs", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  userId: integer("userId"), // NULL = 未認証アクション
+  userEmail: varchar("userEmail", { length: 320 }), // 非正規化、検索用
+  action: auditActionEnum("action").notNull(),
+  resource: varchar("resource", { length: 255 }), // 例: "store:123"
+  ipAddress: varchar("ipAddress", { length: 45 }), // IPv6対応
+  userAgent: varchar("userAgent", { length: 500 }),
+  metadata: varchar("metadata", { length: 2000 }), // JSON文字列
+  success: integer("success").notNull().default(1), // 1=成功, 0=失敗
+  errorMessage: varchar("errorMessage", { length: 500 }),
+}, (table) => ({
+  timestampIdx: uniqueIndex("audit_logs_timestamp_idx").on(table.timestamp),
+  userIdIdx: uniqueIndex("audit_logs_userId_idx").on(table.userId),
+  actionIdx: uniqueIndex("audit_logs_action_idx").on(table.action),
+}));
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = typeof auditLogs.$inferInsert;

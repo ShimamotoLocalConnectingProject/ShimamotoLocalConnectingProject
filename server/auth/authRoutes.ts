@@ -3,6 +3,7 @@ import passport from "passport";
 import { createUserWithPassword, findUserByEmail, updateLastSignIn } from "./authDb";
 import { generateToken, verifyPassword } from "./authService";
 import { User } from "../../drizzle/schema";
+import { logAudit } from "../db";
 
 const router = Router();
 
@@ -31,6 +32,16 @@ router.post("/register", async (req: Request, res: Response) => {
     // Create user
     const user = await createUserWithPassword(email, password, name);
     
+    // Audit log
+    logAudit({
+      action: "auth.register",
+      userId: user.id,
+      userEmail: user.email,
+      ipAddress: req.ip,
+      userAgent: req.get("user-agent"),
+      metadata: { name: user.name },
+    });
+    
     // Generate JWT token
     const token = generateToken(user);
     
@@ -47,6 +58,17 @@ router.post("/register", async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Registration error:", error);
+    
+    // Audit log (失敗)
+    logAudit({
+      action: "auth.register",
+      userEmail: req.body.email,
+      ipAddress: req.ip,
+      userAgent: req.get("user-agent"),
+      success: false,
+      errorMessage: String(error),
+    });
+    
     res.status(500).json({ error: "登録に失敗しました" });
   }
 });
@@ -76,11 +98,29 @@ router.post("/login", async (req: Request, res: Response) => {
     // Verify password
     const isValid = await verifyPassword(password, user.passwordHash);
     if (!isValid) {
+      // Audit log (ログイン失敗)
+      logAudit({
+        action: "auth.login_failed",
+        userEmail: email,
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent"),
+        success: false,
+        errorMessage: "Invalid password",
+      });
       return res.status(401).json({ error: "メールアドレスまたはパスワードが正しくありません" });
     }
     
     // Update last sign in
     await updateLastSignIn(user.id);
+    
+    // Audit log (ログイン成功)
+    logAudit({
+      action: "auth.login",
+      userId: user.id,
+      userEmail: user.email,
+      ipAddress: req.ip,
+      userAgent: req.get("user-agent"),
+    });
     
     // Generate JWT token
     const token = generateToken(user);

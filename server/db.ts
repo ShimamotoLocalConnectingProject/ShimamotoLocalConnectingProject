@@ -9,6 +9,7 @@ import {
   pointHistory,
   rewardUsage,
   rewardTokens, InsertRewardToken,
+  auditLogs, InsertAuditLog,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import crypto from "crypto";
@@ -395,4 +396,80 @@ export async function verifyAndUseRewardToken(token: string, storeId: number) {
     .where(eq(rewardTokens.id, rewardToken.id));
 
   return rewardToken;
+}
+
+// ============================================================
+// Audit Log helpers (Enterprise-grade logging)
+// ============================================================
+
+interface AuditLogParams {
+  action: InsertAuditLog['action'];
+  userId?: number;
+  userEmail?: string;
+  resource?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  metadata?: Record<string, any>;
+  success?: boolean;
+  errorMessage?: string;
+}
+
+/**
+ * 監査ログを非同期で記録（append-only）
+ * すべての重要なアクションを記録し、削除不可
+ */
+export async function logAudit(params: AuditLogParams): Promise<void> {
+  const db = await getDb();
+  if (!db) {
+    // データベース接続失敗時もコンソールに記録
+    console.warn("[Audit] Failed to write audit log (DB unavailable):", params);
+    return;
+  }
+
+  try {
+    await db.insert(auditLogs).values({
+      timestamp: new Date(),
+      userId: params.userId ?? null,
+      userEmail: params.userEmail ?? null,
+      action: params.action,
+      resource: params.resource ?? null,
+      ipAddress: params.ipAddress ?? null,
+      userAgent: params.userAgent ?? null,
+      metadata: params.metadata ? JSON.stringify(params.metadata) : null,
+      success: params.success === false ? 0 : 1,
+      errorMessage: params.errorMessage ?? null,
+    });
+  } catch (error) {
+    // 監査ログ書き込み失敗もコンソールに記録
+    console.error("[Audit] Failed to write audit log:", error, params);
+  }
+}
+
+/**
+ * 監査ログを取得（管理者専用）
+ * ページネーション対応
+ */
+export async function getAuditLogs(limit: number = 100, offset: number = 0) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select()
+    .from(auditLogs)
+    .orderBy(desc(auditLogs.timestamp))
+    .limit(limit)
+    .offset(offset);
+}
+
+/**
+ * 特定ユーザーの監査ログを取得
+ */
+export async function getAuditLogsByUser(userId: number, limit: number = 50) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select()
+    .from(auditLogs)
+    .where(eq(auditLogs.userId, userId))
+    .orderBy(desc(auditLogs.timestamp))
+    .limit(limit);
 }
