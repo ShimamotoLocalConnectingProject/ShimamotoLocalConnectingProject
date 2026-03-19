@@ -13,19 +13,18 @@ import { useEffect } from "react";
 function Router() {
   const [, setLocation] = useLocation();
 
-  // Handle OAuth callback redirect with token
+  // OAuth callback no longer passes token in URL
+  // Token is set as httpOnly cookie by server
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get("token");
+    const error = urlParams.get("error");
     
-    if (token) {
-      localStorage.setItem("auth_token", token);
-      // Remove token from URL
-      window.history.replaceState({}, "", "/");
-      // Trigger re-render
-      window.location.href = "/";
+    if (error) {
+      // OAuth error - redirect to login
+      window.history.replaceState({}, "", "/login");
+      setLocation("/login");
     }
-  }, []);
+  }, [setLocation]);
 
   return (
     <Switch>

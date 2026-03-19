@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 
 interface LoginPageProps {
-  onSuccess: (token: string) => void;
+  onSuccess: () => void;
 }
 
 export default function LoginPage({ onSuccess }: LoginPageProps) {
@@ -29,6 +29,7 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include", // Send cookies
         body: JSON.stringify({ email, password }),
       });
 
@@ -38,9 +39,8 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
         throw new Error(data.error || "ログインに失敗しました");
       }
 
-      // Store token
-      localStorage.setItem("auth_token", data.token);
-      onSuccess(data.token);
+      // Token is set as httpOnly cookie by server - no localStorage needed
+      onSuccess();
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -70,6 +70,7 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include", // Send cookies
         body: JSON.stringify({ email, password, name }),
       });
 
@@ -79,10 +80,9 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
         throw new Error(data.error || "登録に失敗しました");
       }
 
-      // Store token
-      localStorage.setItem("auth_token", data.token);
+      // Token is set as httpOnly cookie by server - no localStorage needed
       setSuccess("登録が完了しました！");
-      setTimeout(() => onSuccess(data.token), 1000);
+      setTimeout(() => onSuccess(), 1000);
     } catch (err: any) {
       setError(err.message);
     } finally {

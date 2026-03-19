@@ -1,10 +1,10 @@
 import { Request, Response, NextFunction } from "express";
-import { verifyToken, extractTokenFromHeader } from "./authService";
+import { verifyToken, extractToken } from "./authService";
 import { findUserById } from "./authDb";
 import { User } from "../../drizzle/schema";
 
 /**
- * Middleware to authenticate JWT token
+ * Middleware to authenticate JWT token from cookie or Authorization header
  * Adds user to request object if valid
  */
 export async function authenticateToken(
@@ -13,7 +13,7 @@ export async function authenticateToken(
   next: NextFunction
 ): Promise<void> {
   try {
-    const token = extractTokenFromHeader(req.headers.authorization);
+    const token = extractToken(req);
     
     if (!token) {
       (req as any).user = null;
@@ -27,7 +27,7 @@ export async function authenticateToken(
       return next();
     }
     
-    // Fetch fresh user data
+    // Fetch fresh user data from database
     const user = await findUserById(payload.userId);
     
     if (!user) {

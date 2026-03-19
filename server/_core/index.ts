@@ -1,5 +1,6 @@
-import "dotenv/config";
+import "./env"; // Validate environment variables first
 import express from "express";
+import cookieParser from "cookie-parser";
 import { createServer } from "http";
 import net from "net";
 import passport from "passport";
@@ -38,7 +39,10 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   
-  // Initialize Passport
+  // Cookie parser (required for httpOnly JWT cookies)
+  app.use(cookieParser());
+  
+  // Initialize Passport (NO session support)
   app.use(passport.initialize());
   configurePassport();
   

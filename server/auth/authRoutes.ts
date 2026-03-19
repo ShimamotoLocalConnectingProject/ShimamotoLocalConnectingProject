@@ -1,27 +1,40 @@
 import { Router, Request, Response, NextFunction } from "express";
 import passport from "passport";
+import { z } from "zod";
 import { createUserWithPassword, findUserByEmail, updateLastSignIn } from "./authDb";
-import { generateToken, verifyPassword } from "./authService";
+import { setAuthCookie, clearAuthCookie, verifyPassword } from "./authService";
 import { User } from "../../drizzle/schema";
 import { logAudit } from "../db";
 
 const router = Router();
+
+// Validation schemas
+const registerSchema = z.object({
+  email: z.string().email("有効なメールアドレスを入力してください"),
+  password: z.string().min(8, "パスワードは8文字以上である必要があります"),
+  name: z.string().optional(),
+});
+
+const loginSchema = z.object({
+  email: z.string().email("有効なメールアドレスを入力してください"),
+  password: z.string().min(1, "パスワードを入力してください"),
+});
 
 /**
  * Register new user with email/password
  */
 router.post("/register", async (req: Request, res: Response) => {
   try {
-    const { email, password, name } = req.body;
-    
-    // Validation
-    if (!email || !password) {
-      return res.status(400).json({ error: "メールアドレスとパスワードは必須です" });
+    // Validate input
+    const validation = registerSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ 
+        error: validation.error.errors[0].message,
+        details: validation.error.errors,
+      });
     }
     
-    if (password.length < 8) {
-      return res.status(400).json({ error: "パスワードは8文字以上である必要があります" });
-    }
+    const { email, password, name } = validation.data;
     
     // Check if user already exists
     const existingUser = await findUserByEmail(email);
@@ -42,13 +55,12 @@ router.post("/register", async (req: Request, res: Response) => {
       metadata: { name: user.name },
     });
     
-    // Generate JWT token
-    const token = generateToken(user);
+    // Set JWT token as httpOnly cookie
+    setAuthCookie(res, user);
     
-    // Return user info and token
+    // Return user info (no token in response body)
     res.json({
       success: true,
-      token,
       user: {
         id: user.id,
         email: user.email,
@@ -78,11 +90,16 @@ router.post("/register", async (req: Request, res: Response) => {
  */
 router.post("/login", async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
-    
-    if (!email || !password) {
-      return res.status(400).json({ error: "メールアドレスとパスワードは必須です" });
+    // Validate input
+    const validation = loginSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ 
+        error: validation.error.errors[0].message,
+        details: validation.error.errors,
+      });
     }
+    
+    const { email, password } = validation.data;
     
     // Find user
     const user = await findUserByEmail(email);
@@ -122,12 +139,11 @@ router.post("/login", async (req: Request, res: Response) => {
       userAgent: req.get("user-agent"),
     });
     
-    // Generate JWT token
-    const token = generateToken(user);
+    // Set JWT token as httpOnly cookie
+    setAuthCookie(res, user);
     
     res.json({
       success: true,
-      token,
       user: {
         id: user.id,
         email: user.email,
@@ -172,10 +188,12 @@ router.get(
   passport.authenticate("google", { session: false, failureRedirect: "/login?error=google" }),
   (req: Request, res: Response) => {
     const user = req.user as User;
-    const token = generateToken(user);
     
-    // Redirect to frontend with token
-    res.redirect(`/?token=${token}`);
+    // Set JWT token as httpOnly cookie
+    setAuthCookie(res, user);
+    
+    // Redirect to frontend (no token in URL)
+    res.redirect("/");
   }
 );
 
@@ -192,17 +210,32 @@ router.get(
   passport.authenticate("github", { session: false, failureRedirect: "/login?error=github" }),
   (req: Request, res: Response) => {
     const user = req.user as User;
-    const token = generateToken(user);
     
-    // Redirect to frontend with token
-    res.redirect(`/?token=${token}`);
+    // Set JWT token as httpOnly cookie
+    setAuthCookie(res, user);
+    
+    // Redirect to frontend (no token in URL)
+    res.redirect("/");
   }
 );
 
 /**
- * Logout (client-side should remove token)
+ * Logout (clear httpOnly cookie)
  */
 router.post("/logout", (req: Request, res: Response) => {
+  const user = (req as any).user as User | undefined;
+  
+  if (user) {
+    logAudit({
+      action: "auth.logout",
+      userId: user.id,
+      userEmail: user.email,
+      ipAddress: req.ip,
+      userAgent: req.get("user-agent"),
+    });
+  }
+  
+  clearAuthCookie(res);
   res.json({ success: true, message: "ログアウトしました" });
 });
 

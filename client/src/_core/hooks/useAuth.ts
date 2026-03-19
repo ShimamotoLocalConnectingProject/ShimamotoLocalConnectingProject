@@ -19,9 +19,10 @@ export function useAuth(options?: UseAuthOptions) {
 
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: () => {
-      // Remove JWT token from localStorage
-      localStorage.removeItem("auth_token");
+      // Cookie is cleared by server - just reset local state
       utils.auth.me.setData(undefined, null);
+      // Redirect to login
+      window.location.href = "/login";
     },
   });
 
@@ -34,14 +35,11 @@ export function useAuth(options?: UseAuthOptions) {
         error.data?.code === "UNAUTHORIZED"
       ) {
         // Already logged out
-        localStorage.removeItem("auth_token");
+        utils.auth.me.setData(undefined, null);
+        window.location.href = "/login";
         return;
       }
       throw error;
-    } finally {
-      localStorage.removeItem("auth_token");
-      utils.auth.me.setData(undefined, null);
-      await utils.auth.me.invalidate();
     }
   }, [logoutMutation, utils]);
 

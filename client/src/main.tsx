@@ -41,14 +41,11 @@ const trpcClient = trpc.createClient({
     httpBatchLink({
       url: "/api/trpc",
       transformer: superjson,
-      headers() {
-        const token = localStorage.getItem("auth_token");
-        return token ? { Authorization: `Bearer ${token}` } : {};
-      },
+      // NO Authorization header needed - JWT is sent via httpOnly cookie
       fetch(input, init) {
         return globalThis.fetch(input, {
           ...(init ?? {}),
-          credentials: "include",
+          credentials: "include", // Send cookies with requests
         });
       },
     }),
