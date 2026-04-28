@@ -1,0 +1,1455 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>チンチロリン - 極限演出</title>
+<style>
+/* ========== RESET & BASE ========== */
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;font-family:'Hiragino Sans','Meiryo',sans-serif;background:#0a0a0f;color:#fff;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+
+/* ========== MAIN CONTAINER ========== */
+#game-container{position:relative;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;overflow:hidden}
+
+/* ========== BACKGROUND EFFECTS ========== */
+#bg-canvas{position:absolute;top:0;left:0;width:100%;height:100%;z-index:0}
+.bg-gradient{position:absolute;top:0;left:0;width:100%;height:100%;background:radial-gradient(ellipse at 50% 30%,#1a0a2e 0%,#0a0a0f 70%);z-index:0}
+
+/* ========== EFFECTS CANVAS ========== */
+#fx-canvas{position:absolute;top:0;left:0;width:100%;height:100%;z-index:10;pointer-events:none}
+
+/* ========== TOP BAR ========== */
+.top-bar{position:relative;z-index:20;width:100%;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(180deg,rgba(20,10,40,0.95),rgba(10,5,20,0.8));border-bottom:2px solid #ff006655}
+.top-bar .balance{font-size:1.1em;font-weight:bold;color:#ffd700;text-shadow:0 0 10px #ffd70088}
+.top-bar .balance span{font-size:1.3em}
+.top-bar .round-info{font-size:0.85em;color:#aaa}
+.top-bar .streak{font-size:0.9em;color:#ff4444;font-weight:bold}
+
+/* ========== DICE AREA ========== */
+.dice-area{position:relative;z-index:5;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;max-width:500px;gap:20px}
+
+/* ========== BOWL ========== */
+.bowl{position:relative;width:280px;height:180px;border-radius:50%;background:radial-gradient(ellipse at 50% 60%,#2a1a0a,#1a0f05);border:3px solid #4a3520;box-shadow:inset 0 20px 40px rgba(0,0,0,0.6),0 5px 20px rgba(0,0,0,0.8),0 0 30px rgba(255,100,0,0.1);display:flex;justify-content:center;align-items:center;gap:12px;overflow:visible}
+
+/* ========== DICE ========== */
+.dice-wrapper{perspective:600px;width:70px;height:70px}
+.dice{width:70px;height:70px;position:relative;transform-style:preserve-3d;transition:transform 0.3s ease-out}
+.dice.rolling{animation:diceRoll 0.15s linear infinite}
+.dice-face{position:absolute;width:70px;height:70px;background:linear-gradient(135deg,#fff 0%,#e8e8e8 100%);border:2px solid #ccc;border-radius:12px;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;padding:8px;box-shadow:inset 0 2px 4px rgba(255,255,255,0.5)}
+.dice-face.front{transform:translateZ(35px)}
+.dice-face.back{transform:rotateY(180deg) translateZ(35px)}
+.dice-face.right{transform:rotateY(90deg) translateZ(35px)}
+.dice-face.left{transform:rotateY(-90deg) translateZ(35px)}
+.dice-face.top{transform:rotateX(90deg) translateZ(35px)}
+.dice-face.bottom{transform:rotateX(-90deg) translateZ(35px)}
+.dot{width:14px;height:14px;background:radial-gradient(circle,#222,#000);border-radius:50%;margin:2px}
+.dot.red{background:radial-gradient(circle,#ff2222,#aa0000)}
+
+/* Dice face layouts */
+.dice-face[data-value="1"]{justify-content:center;align-content:center}
+.dice-face[data-value="2"]{justify-content:space-between;align-content:space-between}
+.dice-face[data-value="2"] .dot:first-child{align-self:flex-start}
+.dice-face[data-value="2"] .dot:last-child{align-self:flex-end}
+.dice-face[data-value="3"]{justify-content:space-between;align-content:space-between}
+.dice-face[data-value="3"] .dot:nth-child(1){align-self:flex-start}
+.dice-face[data-value="3"] .dot:nth-child(2){align-self:center}
+.dice-face[data-value="3"] .dot:nth-child(3){align-self:flex-end}
+
+@keyframes diceRoll{
+  0%{transform:rotateX(0deg) rotateY(0deg) rotateZ(0deg)}
+  25%{transform:rotateX(90deg) rotateY(90deg) rotateZ(0deg)}
+  50%{transform:rotateX(180deg) rotateY(180deg) rotateZ(90deg)}
+  75%{transform:rotateX(270deg) rotateY(90deg) rotateZ(180deg)}
+  100%{transform:rotateX(360deg) rotateY(360deg) rotateZ(360deg)}
+}
+
+/* ========== RESULT DISPLAY ========== */
+.result-display{position:relative;z-index:20;min-height:60px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.result-text{font-size:2em;font-weight:900;text-shadow:0 0 20px currentColor;opacity:0;transform:scale(0);transition:all 0.5s cubic-bezier(0.175,0.885,0.32,1.275)}
+.result-text.show{opacity:1;transform:scale(1)}
+.result-sub{font-size:1em;color:#aaa;margin-top:4px}
+
+/* ========== CONTROLS ========== */
+.controls{position:relative;z-index:20;width:100%;padding:12px 16px 20px;display:flex;flex-direction:column;align-items:center;gap:10px}
+
+/* ========== BET CONTROLS ========== */
+.bet-controls{display:flex;align-items:center;gap:12px}
+.bet-controls label{font-size:0.9em;color:#aaa}
+.bet-amount{font-size:1.3em;color:#ffd700;font-weight:bold;min-width:60px;text-align:center}
+.btn-bet{width:40px;height:40px;border-radius:50%;border:2px solid #ffd700;background:rgba(255,215,0,0.1);color:#ffd700;font-size:1.2em;font-weight:bold;cursor:pointer;transition:all 0.2s}
+.btn-bet:active{transform:scale(0.9);background:rgba(255,215,0,0.3)}
+
+/* ========== ROLL BUTTON ========== */
+.btn-roll{width:200px;height:60px;border-radius:30px;border:none;font-size:1.4em;font-weight:900;letter-spacing:4px;cursor:pointer;position:relative;overflow:hidden;transition:all 0.3s}
+.btn-roll.ready{background:linear-gradient(135deg,#ff0066,#ff6600);color:#fff;box-shadow:0 0 30px rgba(255,0,102,0.5),0 5px 15px rgba(0,0,0,0.3);animation:btnPulse 2s ease-in-out infinite}
+.btn-roll.rolling{background:linear-gradient(135deg,#333,#555);color:#999;pointer-events:none}
+.btn-roll.disabled{background:#222;color:#555;pointer-events:none;box-shadow:none;animation:none}
+.btn-roll::after{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:linear-gradient(45deg,transparent,rgba(255,255,255,0.1),transparent);transform:rotate(45deg);transition:all 0.5s}
+.btn-roll:active::after{left:100%}
+
+@keyframes btnPulse{
+  0%,100%{box-shadow:0 0 20px rgba(255,0,102,0.4)}
+  50%{box-shadow:0 0 40px rgba(255,0,102,0.8),0 0 60px rgba(255,102,0,0.3)}
+}
+
+/* ========== DEALER SECTION ========== */
+.dealer-section{position:relative;z-index:5;width:100%;max-width:500px;padding:8px 20px;text-align:center}
+.dealer-label{font-size:0.8em;color:#888;margin-bottom:4px}
+.dealer-dice{display:flex;justify-content:center;gap:10px}
+.mini-dice{width:45px;height:45px;background:linear-gradient(135deg,#ddd,#bbb);border-radius:8px;border:2px solid #999;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;padding:4px;font-size:0.7em}
+.mini-dice .dot{width:8px;height:8px;background:#333;border-radius:50%;margin:1px}
+.dealer-result{font-size:1em;color:#ff8800;font-weight:bold;margin-top:4px}
+
+/* ========== PRE-REVEAL EFFECTS (先バレ) ========== */
+.senbare-overlay{position:absolute;top:0;left:0;width:100%;height:100%;z-index:50;pointer-events:none;display:none}
+.senbare-overlay.active{display:block}
+
+.senbare-lamp{position:absolute;width:20px;height:20px;border-radius:50%;opacity:0}
+.senbare-lamp.flash{animation:lampFlash 0.3s ease-in-out}
+
+@keyframes lampFlash{
+  0%,100%{opacity:0;transform:scale(1)}
+  50%{opacity:1;transform:scale(1.5);box-shadow:0 0 20px currentColor}
+}
+
+.reach-text{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);font-size:4em;font-weight:900;color:#ff0000;text-shadow:0 0 30px #ff0000,0 0 60px #ff000088;opacity:0;z-index:60;pointer-events:none}
+.reach-text.show{animation:reachAppear 1.5s ease-out forwards}
+
+@keyframes reachAppear{
+  0%{transform:translate(-50%,-50%) scale(0) rotate(-20deg);opacity:0}
+  30%{transform:translate(-50%,-50%) scale(1.5) rotate(5deg);opacity:1}
+  50%{transform:translate(-50%,-50%) scale(1.2) rotate(-2deg);opacity:1}
+  70%{transform:translate(-50%,-50%) scale(1.3) rotate(1deg);opacity:1}
+  100%{transform:translate(-50%,-50%) scale(1.2) rotate(0deg);opacity:0}
+}
+
+/* ========== SUPER REACH ========== */
+.super-reach{position:absolute;top:0;left:0;width:100%;height:100%;z-index:55;pointer-events:none;display:none}
+.super-reach.active{display:flex;align-items:center;justify-content:center}
+.super-reach-text{font-size:2.5em;font-weight:900;background:linear-gradient(90deg,#ff0000,#ff6600,#ffff00,#00ff00,#0066ff,#9900ff,#ff0000);background-size:400%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:rainbowText 1s linear infinite;text-shadow:none;filter:drop-shadow(0 0 10px rgba(255,255,255,0.5))}
+
+@keyframes rainbowText{
+  0%{background-position:0%}
+  100%{background-position:400%}
+}
+
+/* ========== JACKPOT OVERLAY ========== */
+.jackpot-overlay{position:absolute;top:0;left:0;width:100%;height:100%;z-index:70;pointer-events:none;display:none}
+.jackpot-overlay.active{display:flex;flex-direction:column;align-items:center;justify-content:center;animation:jackpotBg 0.5s ease-in-out infinite alternate}
+
+@keyframes jackpotBg{
+  0%{background:radial-gradient(ellipse at 50% 50%,rgba(255,0,0,0.3),transparent 70%)}
+  100%{background:radial-gradient(ellipse at 50% 50%,rgba(255,215,0,0.4),transparent 70%)}
+}
+
+.jackpot-text{font-size:3em;font-weight:900;animation:jackpotPulse 0.3s ease-in-out infinite alternate}
+.jackpot-sub{font-size:1.5em;color:#ffd700;margin-top:10px;animation:jackpotPulse 0.5s ease-in-out infinite alternate}
+
+@keyframes jackpotPulse{
+  0%{transform:scale(1);filter:brightness(1)}
+  100%{transform:scale(1.1);filter:brightness(1.5)}
+}
+
+/* ========== SCREEN SHAKE ========== */
+.shake{animation:screenShake 0.5s ease-in-out}
+@keyframes screenShake{
+  0%,100%{transform:translate(0)}
+  10%{transform:translate(-8px,4px)}
+  20%{transform:translate(8px,-4px)}
+  30%{transform:translate(-6px,6px)}
+  40%{transform:translate(6px,-2px)}
+  50%{transform:translate(-4px,4px)}
+  60%{transform:translate(4px,-4px)}
+  70%{transform:translate(-2px,2px)}
+  80%{transform:translate(2px,-2px)}
+  90%{transform:translate(-1px,1px)}
+}
+
+/* ========== FLASH OVERLAY ========== */
+.flash-overlay{position:absolute;top:0;left:0;width:100%;height:100%;z-index:80;pointer-events:none;opacity:0;transition:opacity 0.05s}
+.flash-overlay.white{background:#fff;opacity:0.8;animation:flashFade 0.3s ease-out forwards}
+.flash-overlay.red{background:#ff0000;opacity:0.5;animation:flashFade 0.4s ease-out forwards}
+.flash-overlay.gold{background:#ffd700;opacity:0.6;animation:flashFade 0.5s ease-out forwards}
+.flash-overlay.rainbow{background:linear-gradient(90deg,#ff0000,#ff6600,#ffff00,#00ff00,#0066ff,#9900ff);opacity:0.4;animation:flashFade 0.8s ease-out forwards}
+
+@keyframes flashFade{
+  0%{opacity:inherit}
+  100%{opacity:0}
+}
+
+/* ========== SIDE LAMPS ========== */
+.side-lamps{position:absolute;top:0;left:0;width:100%;height:100%;z-index:3;pointer-events:none}
+.side-lamp{position:absolute;width:12px;height:12px;border-radius:50%;background:#333;transition:all 0.1s}
+.side-lamp.on{box-shadow:0 0 10px currentColor,0 0 20px currentColor;background:currentColor}
+.side-lamp.left{left:8px}
+.side-lamp.right{right:8px}
+
+/* ========== WIN AMOUNT POPUP ========== */
+.win-popup{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);z-index:90;font-size:2.5em;font-weight:900;color:#ffd700;text-shadow:0 0 20px #ffd700,0 0 40px #ff6600;opacity:0;pointer-events:none}
+.win-popup.show{animation:winPopup 2s ease-out forwards}
+
+@keyframes winPopup{
+  0%{opacity:0;transform:translate(-50%,-50%) scale(0.5)}
+  20%{opacity:1;transform:translate(-50%,-50%) scale(1.5)}
+  40%{transform:translate(-50%,-50%) scale(1.2)}
+  80%{opacity:1;transform:translate(-50%,-60%) scale(1.2)}
+  100%{opacity:0;transform:translate(-50%,-80%) scale(1)}
+}
+
+/* ========== MULTIPLIER ========== */
+.multiplier-display{position:absolute;top:20%;right:20px;z-index:25;font-size:1.8em;font-weight:900;color:#ff0066;text-shadow:0 0 15px #ff006688;opacity:0;transition:all 0.5s}
+.multiplier-display.show{opacity:1;animation:multiPulse 0.5s ease-in-out infinite alternate}
+
+@keyframes multiPulse{
+  0%{transform:scale(1)}
+  100%{transform:scale(1.15)}
+}
+
+/* ========== CHEAT INDICATOR (隠し) ========== */
+.cheat-dot{position:absolute;bottom:4px;right:4px;width:4px;height:4px;border-radius:50%;background:transparent;z-index:100;transition:background 0.3s}
+.cheat-dot.active{background:rgba(0,255,0,0.15)}
+
+/* ========== HISTORY ========== */
+.history-bar{position:relative;z-index:20;width:100%;padding:4px 12px;display:flex;gap:4px;overflow-x:auto;background:rgba(0,0,0,0.5);border-top:1px solid #222}
+.history-item{flex-shrink:0;padding:2px 8px;border-radius:4px;font-size:0.7em;font-weight:bold}
+.history-item.win{background:rgba(0,255,0,0.15);color:#0f0;border:1px solid #0f033}
+.history-item.lose{background:rgba(255,0,0,0.1);color:#f44;border:1px solid #f4433}
+.history-item.draw{background:rgba(255,255,0,0.1);color:#ff0;border:1px solid #ff033}
+
+/* ========== TITLE SCREEN ========== */
+#title-screen{position:absolute;top:0;left:0;width:100%;height:100%;z-index:200;background:radial-gradient(ellipse at 50% 30%,#2a0a3e,#0a0a0f);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px;transition:opacity 0.5s}
+#title-screen.hide{opacity:0;pointer-events:none}
+.title-logo{font-size:3em;font-weight:900;background:linear-gradient(135deg,#ffd700,#ff6600,#ff0066);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-shadow:none;filter:drop-shadow(0 0 20px rgba(255,215,0,0.5));animation:titlePulse 2s ease-in-out infinite alternate}
+.title-sub{font-size:1em;color:#888;letter-spacing:8px}
+.btn-start{padding:16px 48px;border-radius:30px;border:2px solid #ffd700;background:linear-gradient(135deg,rgba(255,215,0,0.1),rgba(255,102,0,0.1));color:#ffd700;font-size:1.2em;font-weight:bold;letter-spacing:4px;cursor:pointer;transition:all 0.3s;animation:btnGlow 2s ease-in-out infinite alternate}
+.btn-start:active{transform:scale(0.95);background:rgba(255,215,0,0.3)}
+
+@keyframes titlePulse{
+  0%{filter:drop-shadow(0 0 20px rgba(255,215,0,0.3))}
+  100%{filter:drop-shadow(0 0 40px rgba(255,215,0,0.8))}
+}
+@keyframes btnGlow{
+  0%{box-shadow:0 0 10px rgba(255,215,0,0.2)}
+  100%{box-shadow:0 0 30px rgba(255,215,0,0.6),0 0 60px rgba(255,102,0,0.2)}
+}
+
+/* ========== RESPONSIVE ========== */
+@media(max-width:380px){
+  .bowl{width:240px;height:150px}
+  .dice-wrapper,.dice,.dice-face{width:58px;height:58px}
+  .dice-face .dot{width:11px;height:11px}
+  .title-logo{font-size:2.2em}
+  .result-text{font-size:1.6em}
+}
+@media(min-width:600px){
+  .bowl{width:340px;height:220px}
+  .dice-wrapper,.dice,.dice-face{width:80px;height:80px}
+  .dice-face .dot{width:16px;height:16px}
+}
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <div class="bg-gradient"></div>
+  <canvas id="bg-canvas"></canvas>
+  <canvas id="fx-canvas"></canvas>
+  
+  <!-- Side Lamps -->
+  <div class="side-lamps" id="side-lamps"></div>
+  
+  <!-- Senbare Overlay -->
+  <div class="senbare-overlay" id="senbare-overlay"></div>
+  <div class="reach-text" id="reach-text">リーチ!!</div>
+  <div class="super-reach" id="super-reach"><span class="super-reach-text">超激アツ!!!</span></div>
+  
+  <!-- Jackpot Overlay -->
+  <div class="jackpot-overlay" id="jackpot-overlay">
+    <div class="jackpot-text" id="jackpot-text"></div>
+    <div class="jackpot-sub" id="jackpot-sub"></div>
+  </div>
+  
+  <!-- Flash Overlay -->
+  <div class="flash-overlay" id="flash-overlay"></div>
+  
+  <!-- Win Popup -->
+  <div class="win-popup" id="win-popup"></div>
+  
+  <!-- Multiplier Display -->
+  <div class="multiplier-display" id="multiplier-display"></div>
+  
+  <!-- Top Bar -->
+  <div class="top-bar">
+    <div>
+      <div class="balance">所持金: <span id="balance">10000</span>G</div>
+      <div class="round-info">Round <span id="round-num">1</span></div>
+    </div>
+    <div style="text-align:right">
+      <div class="streak" id="streak-display"></div>
+      <div class="round-info" id="win-rate"></div>
+    </div>
+  </div>
+  
+  <!-- Dealer Section -->
+  <div class="dealer-section">
+    <div class="dealer-label">親 (ディーラー)</div>
+    <div class="dealer-dice" id="dealer-dice">
+      <div class="mini-dice" id="dealer-d1"></div>
+      <div class="mini-dice" id="dealer-d2"></div>
+      <div class="mini-dice" id="dealer-d3"></div>
+    </div>
+    <div class="dealer-result" id="dealer-result"></div>
+  </div>
+  
+  <!-- Dice Area -->
+  <div class="dice-area">
+    <div class="bowl" id="bowl">
+      <div class="dice-wrapper"><div class="dice" id="dice1"></div></div>
+      <div class="dice-wrapper"><div class="dice" id="dice2"></div></div>
+      <div class="dice-wrapper"><div class="dice" id="dice3"></div></div>
+    </div>
+    <div class="result-display">
+      <div class="result-text" id="result-text"></div>
+      <div class="result-sub" id="result-sub"></div>
+    </div>
+  </div>
+  
+  <!-- Controls -->
+  <div class="controls">
+    <div class="bet-controls">
+      <button class="btn-bet" id="btn-bet-down">−</button>
+      <div>
+        <div style="font-size:0.75em;color:#888;text-align:center">BET</div>
+        <div class="bet-amount" id="bet-amount">100</div>
+      </div>
+      <button class="btn-bet" id="btn-bet-up">＋</button>
+    </div>
+    <button class="btn-roll ready" id="btn-roll">サイコロを振る</button>
+  </div>
+  
+  <!-- History -->
+  <div class="history-bar" id="history-bar"></div>
+  
+  <!-- Cheat Indicator -->
+  <div class="cheat-dot" id="cheat-dot"></div>
+</div>
+
+<!-- Title Screen -->
+<div id="title-screen">
+  <div class="title-logo">チンチロリン</div>
+  <div class="title-sub">CHINCHIRORIN</div>
+  <button class="btn-start" id="btn-start">START</button>
+  <div style="font-size:0.7em;color:#555;margin-top:20px">タップして開始</div>
+</div>
+
+<script>
+// ============================================================
+// SOUND SYSTEM (Web Audio API)
+// ============================================================
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+let masterGain = null;
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new AudioCtx();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.3;
+  masterGain.connect(audioCtx.destination);
+}
+
+function playTone(freq, duration, type = 'square', vol = 0.3, detune = 0) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  osc.detune.value = detune;
+  gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  osc.connect(gain);
+  gain.connect(masterGain);
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration);
+}
+
+function playNoise(duration, vol = 0.1) {
+  if (!audioCtx) return;
+  const bufferSize = audioCtx.sampleRate * duration;
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+  const src = audioCtx.createBufferSource();
+  const gain = audioCtx.createGain();
+  src.buffer = buffer;
+  gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  src.connect(gain);
+  gain.connect(masterGain);
+  src.start();
+}
+
+const SFX = {
+  diceRoll() {
+    for (let i = 0; i < 5; i++) {
+      setTimeout(() => playNoise(0.05, 0.2), i * 30);
+      setTimeout(() => playTone(200 + Math.random() * 300, 0.05, 'square', 0.1), i * 40);
+    }
+  },
+  diceHit() {
+    playTone(150, 0.1, 'triangle', 0.3);
+    playNoise(0.08, 0.15);
+  },
+  lampOn() { playTone(880, 0.08, 'sine', 0.15); },
+  reach() {
+    [523, 659, 784].forEach((f, i) => setTimeout(() => playTone(f, 0.3, 'square', 0.2), i * 150));
+  },
+  superReach() {
+    [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => playTone(f, 0.4, 'sawtooth', 0.15, i * 10), i * 120));
+  },
+  win() {
+    const notes = [523, 659, 784, 1047, 784, 1047, 1319];
+    notes.forEach((f, i) => setTimeout(() => playTone(f, 0.25, 'square', 0.2), i * 100));
+  },
+  bigWin() {
+    const notes = [523, 659, 784, 1047, 1319, 1568, 2093];
+    notes.forEach((f, i) => setTimeout(() => {
+      playTone(f, 0.4, 'sawtooth', 0.15);
+      playTone(f * 1.005, 0.4, 'sawtooth', 0.15);
+    }, i * 120));
+  },
+  jackpot() {
+    for (let i = 0; i < 20; i++) {
+      setTimeout(() => {
+        playTone(400 + i * 100, 0.3, 'sawtooth', 0.12);
+        playTone(400 + i * 100 + 5, 0.3, 'sawtooth', 0.12);
+        if (i % 3 === 0) playNoise(0.1, 0.1);
+      }, i * 80);
+    }
+  },
+  lose() {
+    [400, 350, 300, 200].forEach((f, i) => setTimeout(() => playTone(f, 0.3, 'triangle', 0.15), i * 150));
+  },
+  bet() { playTone(600, 0.05, 'sine', 0.1); },
+  anticipation() {
+    let i = 0;
+    const iv = setInterval(() => {
+      playTone(300 + i * 50, 0.1, 'square', 0.08 + i * 0.01);
+      i++;
+      if (i > 10) clearInterval(iv);
+    }, 100);
+    return iv;
+  },
+  heartbeat() {
+    playTone(60, 0.15, 'sine', 0.3);
+    setTimeout(() => playTone(80, 0.1, 'sine', 0.2), 150);
+  },
+  cheatActivate() {
+    [1047, 1319, 1568, 2093].forEach((f, i) => setTimeout(() => playTone(f, 0.15, 'sine', 0.08), i * 60));
+  }
+};
+
+// ============================================================
+// PARTICLE / EFFECTS ENGINE
+// ============================================================
+const fxCanvas = document.getElementById('fx-canvas');
+const fxCtx = fxCanvas.getContext('2d');
+let particles = [];
+let fxAnimId = null;
+
+function resizeFxCanvas() {
+  fxCanvas.width = window.innerWidth;
+  fxCanvas.height = window.innerHeight;
+}
+resizeFxCanvas();
+window.addEventListener('resize', resizeFxCanvas);
+
+class Particle {
+  constructor(x, y, opts = {}) {
+    this.x = x; this.y = y;
+    this.vx = opts.vx || (Math.random() - 0.5) * 10;
+    this.vy = opts.vy || (Math.random() - 0.5) * 10 - 3;
+    this.life = opts.life || 60;
+    this.maxLife = this.life;
+    this.size = opts.size || 3 + Math.random() * 4;
+    this.color = opts.color || `hsl(${Math.random() * 360},100%,60%)`;
+    this.gravity = opts.gravity ?? 0.15;
+    this.type = opts.type || 'circle';
+    this.rotation = Math.random() * Math.PI * 2;
+    this.rotSpeed = (Math.random() - 0.5) * 0.2;
+    this.trail = opts.trail || false;
+    this.prevPositions = [];
+  }
+  update() {
+    if (this.trail) {
+      this.prevPositions.push({x: this.x, y: this.y});
+      if (this.prevPositions.length > 5) this.prevPositions.shift();
+    }
+    this.x += this.vx;
+    this.y += this.vy;
+    this.vy += this.gravity;
+    this.life--;
+    this.rotation += this.rotSpeed;
+  }
+  draw(ctx) {
+    const alpha = this.life / this.maxLife;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    if (this.trail && this.prevPositions.length > 1) {
+      ctx.beginPath();
+      ctx.moveTo(this.prevPositions[0].x, this.prevPositions[0].y);
+      this.prevPositions.forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.lineTo(this.x, this.y);
+      ctx.strokeStyle = this.color;
+      ctx.lineWidth = this.size * 0.5;
+      ctx.stroke();
+    }
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rotation);
+    if (this.type === 'circle') {
+      ctx.beginPath();
+      ctx.arc(0, 0, this.size, 0, Math.PI * 2);
+      ctx.fillStyle = this.color;
+      ctx.fill();
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = this.color;
+    } else if (this.type === 'star') {
+      ctx.fillStyle = this.color;
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2;
+        const r = this.size * (i % 2 === 0 ? 1 : 0.4);
+        ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
+      }
+      ctx.closePath();
+      ctx.fill();
+    } else if (this.type === 'rect') {
+      ctx.fillStyle = this.color;
+      ctx.fillRect(-this.size / 2, -this.size / 2, this.size, this.size * 2);
+    }
+    ctx.restore();
+  }
+}
+
+function emitParticles(x, y, count, opts = {}) {
+  for (let i = 0; i < count; i++) particles.push(new Particle(x, y, {...opts}));
+}
+
+function emitExplosion(x, y, count = 30, colorFn = null) {
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2;
+    const speed = 3 + Math.random() * 8;
+    particles.push(new Particle(x, y, {
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      color: colorFn ? colorFn() : `hsl(${Math.random() * 60 + 30},100%,60%)`,
+      size: 2 + Math.random() * 5,
+      life: 40 + Math.random() * 40,
+      type: Math.random() > 0.5 ? 'star' : 'circle',
+      trail: Math.random() > 0.7
+    }));
+  }
+}
+
+function emitFireworks(x, y) {
+  const colors = ['#ff0066', '#ff6600', '#ffd700', '#00ff66', '#0066ff', '#ff00ff'];
+  for (let burst = 0; burst < 3; burst++) {
+    setTimeout(() => {
+      const bx = x + (Math.random() - 0.5) * 200;
+      const by = y + (Math.random() - 0.5) * 100;
+      emitExplosion(bx, by, 40, () => colors[Math.floor(Math.random() * colors.length)]);
+      SFX.diceHit();
+    }, burst * 300);
+  }
+}
+
+function emitRainbow(cx, cy) {
+  const colors = ['#ff0000', '#ff6600', '#ffff00', '#00ff00', '#0066ff', '#9900ff'];
+  for (let i = 0; i < 60; i++) {
+    const angle = (i / 60) * Math.PI * 2;
+    particles.push(new Particle(cx, cy, {
+      vx: Math.cos(angle) * (5 + Math.random() * 5),
+      vy: Math.sin(angle) * (5 + Math.random() * 5),
+      color: colors[i % colors.length],
+      size: 4 + Math.random() * 4,
+      life: 60 + Math.random() * 30,
+      type: 'star',
+      trail: true,
+      gravity: 0.05
+    }));
+  }
+}
+
+function emitConfetti(count = 50) {
+  const w = fxCanvas.width;
+  for (let i = 0; i < count; i++) {
+    particles.push(new Particle(Math.random() * w, -10, {
+      vx: (Math.random() - 0.5) * 3,
+      vy: 2 + Math.random() * 3,
+      color: `hsl(${Math.random() * 360},80%,60%)`,
+      size: 3 + Math.random() * 5,
+      life: 100 + Math.random() * 60,
+      type: 'rect',
+      gravity: 0.02
+    }));
+  }
+}
+
+function fxLoop() {
+  fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+  particles = particles.filter(p => p.life > 0);
+  particles.forEach(p => { p.update(); p.draw(fxCtx); });
+  fxAnimId = requestAnimationFrame(fxLoop);
+}
+fxLoop();
+
+// ============================================================
+// BACKGROUND ANIMATION
+// ============================================================
+const bgCanvas = document.getElementById('bg-canvas');
+const bgCtx = bgCanvas.getContext('2d');
+let bgStars = [];
+
+function resizeBgCanvas() {
+  bgCanvas.width = window.innerWidth;
+  bgCanvas.height = window.innerHeight;
+  bgStars = [];
+  for (let i = 0; i < 50; i++) {
+    bgStars.push({
+      x: Math.random() * bgCanvas.width,
+      y: Math.random() * bgCanvas.height,
+      size: Math.random() * 2,
+      speed: 0.2 + Math.random() * 0.5,
+      alpha: Math.random()
+    });
+  }
+}
+resizeBgCanvas();
+window.addEventListener('resize', resizeBgCanvas);
+
+function bgLoop() {
+  bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+  bgStars.forEach(s => {
+    s.alpha += (Math.random() - 0.5) * 0.05;
+    s.alpha = Math.max(0.1, Math.min(1, s.alpha));
+    bgCtx.beginPath();
+    bgCtx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+    bgCtx.fillStyle = `rgba(255,255,255,${s.alpha * 0.5})`;
+    bgCtx.fill();
+  });
+  requestAnimationFrame(bgLoop);
+}
+bgLoop();
+
+// ============================================================
+// SIDE LAMPS
+// ============================================================
+const sideLampsEl = document.getElementById('side-lamps');
+const lampCount = 15;
+const lamps = [];
+
+for (let i = 0; i < lampCount; i++) {
+  const leftLamp = document.createElement('div');
+  leftLamp.className = 'side-lamp left';
+  leftLamp.style.top = `${(i / lampCount) * 100}%`;
+  leftLamp.style.color = `hsl(${(i / lampCount) * 360},100%,50%)`;
+  sideLampsEl.appendChild(leftLamp);
+  
+  const rightLamp = document.createElement('div');
+  rightLamp.className = 'side-lamp right';
+  rightLamp.style.top = `${(i / lampCount) * 100}%`;
+  rightLamp.style.color = `hsl(${(i / lampCount) * 360},100%,50%)`;
+  sideLampsEl.appendChild(rightLamp);
+  
+  lamps.push(leftLamp, rightLamp);
+}
+
+let lampInterval = null;
+function startLampAnimation(speed = 100, pattern = 'chase') {
+  stopLampAnimation();
+  let idx = 0;
+  lampInterval = setInterval(() => {
+    lamps.forEach(l => l.classList.remove('on'));
+    if (pattern === 'chase') {
+      const li = idx % lampCount;
+      lamps[li * 2].classList.add('on');
+      lamps[li * 2 + 1].classList.add('on');
+    } else if (pattern === 'all') {
+      lamps.forEach(l => l.classList.add('on'));
+    } else if (pattern === 'alternate') {
+      lamps.forEach((l, i) => { if ((i + idx) % 4 < 2) l.classList.add('on'); });
+    } else if (pattern === 'rainbow') {
+      lamps.forEach((l, i) => {
+        l.classList.add('on');
+        l.style.color = `hsl(${((i * 20 + idx * 15) % 360)},100%,50%)`;
+      });
+    }
+    idx++;
+    SFX.lampOn();
+  }, speed);
+}
+function stopLampAnimation() { clearInterval(lampInterval); lamps.forEach(l => l.classList.remove('on')); }
+
+// ============================================================
+// FLASH EFFECT
+// ============================================================
+const flashEl = document.getElementById('flash-overlay');
+function flash(type = 'white') {
+  flashEl.className = 'flash-overlay';
+  void flashEl.offsetWidth;
+  flashEl.classList.add(type);
+}
+
+// ============================================================
+// SCREEN SHAKE
+// ============================================================
+function screenShake() {
+  const container = document.getElementById('game-container');
+  container.classList.remove('shake');
+  void container.offsetWidth;
+  container.classList.add('shake');
+  setTimeout(() => container.classList.remove('shake'), 500);
+}
+
+// ============================================================
+// DICE RENDERING
+// ============================================================
+function createDiceFaceHTML(value) {
+  const isOne = value === 1;
+  const dots = [];
+  for (let i = 0; i < value; i++) {
+    dots.push(`<div class="dot${isOne ? ' red' : ''}"></div>`);
+  }
+  return `<div class="dice-face front" data-value="${value}">${dots.join('')}</div>`;
+}
+
+function setDiceFace(diceEl, value) {
+  const rotations = {
+    1: 'rotateX(0deg) rotateY(0deg)',
+    2: 'rotateX(0deg) rotateY(90deg)',
+    3: 'rotateX(-90deg) rotateY(0deg)',
+    4: 'rotateX(90deg) rotateY(0deg)',
+    5: 'rotateX(0deg) rotateY(-90deg)',
+    6: 'rotateX(180deg) rotateY(0deg)'
+  };
+  
+  // Build all 6 faces
+  const faces = [
+    {cls: 'front', val: value},
+    {cls: 'back', val: 7 - value},
+    {cls: 'right', val: Math.min(6, Math.max(1, ((value + 1) % 6) + 1))},
+    {cls: 'left', val: Math.min(6, Math.max(1, ((value + 3) % 6) + 1))},
+    {cls: 'top', val: Math.min(6, Math.max(1, ((value + 2) % 6) + 1))},
+    {cls: 'bottom', val: Math.min(6, Math.max(1, ((value + 4) % 6) + 1))}
+  ];
+  
+  diceEl.innerHTML = faces.map(f => {
+    const dots = [];
+    for (let i = 0; i < f.val; i++) dots.push(`<div class="dot${f.val === 1 ? ' red' : ''}"></div>`);
+    return `<div class="dice-face ${f.cls}" data-value="${f.val}">${dots.join('')}</div>`;
+  }).join('');
+  
+  diceEl.style.transform = rotations[value] || 'rotateX(0deg) rotateY(0deg)';
+}
+
+function setMiniDice(el, value) {
+  if (!value) { el.innerHTML = '?'; el.style.color = '#666'; return; }
+  const dots = [];
+  for (let i = 0; i < value; i++) dots.push('<div class="dot"></div>');
+  el.innerHTML = dots.join('');
+  el.style.color = '';
+}
+
+// ============================================================
+// CHINCHIRO GAME LOGIC
+// ============================================================
+const HANDS = {
+  PINZORO: { name: 'ピンゾロ', rank: 100, multi: 5, color: '#ff0000' },
+  ZORO_6: { name: '666ゾロ', rank: 96, multi: 3, color: '#ff2200' },
+  ZORO_5: { name: '555ゾロ', rank: 95, multi: 3, color: '#ff4400' },
+  ZORO_4: { name: '444ゾロ', rank: 94, multi: 3, color: '#ff6600' },
+  ZORO_3: { name: '333ゾロ', rank: 93, multi: 3, color: '#ff8800' },
+  ZORO_2: { name: '222ゾロ', rank: 92, multi: 3, color: '#ffaa00' },
+  SHIGORO: { name: 'シゴロ', rank: 90, multi: 2, color: '#ffd700' },
+  POINT_6: { name: '6の目', rank: 66, multi: 1, color: '#44ff44' },
+  POINT_5: { name: '5の目', rank: 65, multi: 1, color: '#44dd44' },
+  POINT_4: { name: '4の目', rank: 64, multi: 1, color: '#44bb44' },
+  POINT_3: { name: '3の目', rank: 63, multi: 1, color: '#44aa44' },
+  POINT_2: { name: '2の目', rank: 62, multi: 1, color: '#449944' },
+  POINT_1: { name: '1の目', rank: 61, multi: 1, color: '#448844' },
+  MENASHI: { name: '目なし', rank: 0, multi: 0, color: '#888888' },
+  HIFUMI: { name: 'ヒフミ', rank: -1, multi: 2, color: '#4444ff' },
+};
+
+function evaluateHand(d1, d2, d3) {
+  const dice = [d1, d2, d3].sort((a, b) => a - b);
+  const [a, b, c] = dice;
+  
+  // Pinzoro (1-1-1)
+  if (a === 1 && b === 1 && c === 1) return HANDS.PINZORO;
+  
+  // Zoro (trips)
+  if (a === b && b === c) {
+    return [null, null, HANDS.ZORO_2, HANDS.ZORO_3, HANDS.ZORO_4, HANDS.ZORO_5, HANDS.ZORO_6][a];
+  }
+  
+  // Shigoro (4-5-6)
+  if (a === 4 && b === 5 && c === 6) return HANDS.SHIGORO;
+  
+  // Hifumi (1-2-3)
+  if (a === 1 && b === 2 && c === 3) return HANDS.HIFUMI;
+  
+  // Point (two matching + one different)
+  if (a === b) return [null, HANDS.POINT_1, HANDS.POINT_2, HANDS.POINT_3, HANDS.POINT_4, HANDS.POINT_5, HANDS.POINT_6][c];
+  if (b === c) return [null, HANDS.POINT_1, HANDS.POINT_2, HANDS.POINT_3, HANDS.POINT_4, HANDS.POINT_5, HANDS.POINT_6][a];
+  if (a === c) return [null, HANDS.POINT_1, HANDS.POINT_2, HANDS.POINT_3, HANDS.POINT_4, HANDS.POINT_5, HANDS.POINT_6][b];
+  
+  // Menashi (no pair)
+  return HANDS.MENASHI;
+}
+
+function rollDice() { return Math.floor(Math.random() * 6) + 1; }
+
+// ============================================================
+// CHEAT SYSTEM (ステルス裏技)
+// ============================================================
+const cheatSystem = {
+  active: false,
+  konamiIndex: 0,
+  konamiCode: ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'],
+  tapCount: 0,
+  tapTimer: null,
+  holdTimer: null,
+  holdActive: false,
+  forceResult: null,
+  
+  checkKonami(key) {
+    if (key.toLowerCase() === this.konamiCode[this.konamiIndex].toLowerCase()) {
+      this.konamiIndex++;
+      if (this.konamiIndex >= this.konamiCode.length) {
+        this.activate();
+        this.konamiIndex = 0;
+      }
+    } else {
+      this.konamiIndex = 0;
+    }
+  },
+  
+  activate() {
+    this.active = !this.active;
+    document.getElementById('cheat-dot').classList.toggle('active', this.active);
+    if (this.active) SFX.cheatActivate();
+  },
+  
+  onBowlTap() {
+    if (!this.active) return;
+    this.tapCount++;
+    clearTimeout(this.tapTimer);
+    this.tapTimer = setTimeout(() => {
+      if (this.tapCount === 3) {
+        // Triple tap: force pinzoro
+        this.forceResult = 'pinzoro';
+      } else if (this.tapCount === 5) {
+        // Five taps: force shigoro
+        this.forceResult = 'shigoro';
+      } else if (this.tapCount === 2) {
+        // Double tap: force zoro 6
+        this.forceResult = 'zoro6';
+      }
+      this.tapCount = 0;
+    }, 400);
+  },
+  
+  onHoldStart() {
+    if (!this.active) return;
+    this.holdTimer = setTimeout(() => {
+      this.holdActive = true;
+      this.forceResult = 'win';
+    }, 2000);
+  },
+  
+  onHoldEnd() {
+    clearTimeout(this.holdTimer);
+    this.holdActive = false;
+  },
+  
+  getCheatDice() {
+    if (!this.forceResult) return null;
+    const result = this.forceResult;
+    this.forceResult = null;
+    switch (result) {
+      case 'pinzoro': return [1, 1, 1];
+      case 'zoro6': return [6, 6, 6];
+      case 'shigoro': return [4, 5, 6];
+      case 'win': {
+        // Generate a hand that beats the dealer
+        const options = [[4, 5, 6], [6, 6, 6], [1, 1, 1], [6, 6, 5], [6, 6, 4]];
+        return options[Math.floor(Math.random() * options.length)];
+      }
+      default: return null;
+    }
+  }
+};
+
+document.addEventListener('keydown', (e) => cheatSystem.checkKonami(e.key));
+
+// ============================================================
+// GAME STATE
+// ============================================================
+const state = {
+  balance: 10000,
+  bet: 100,
+  round: 1,
+  phase: 'idle', // idle, dealer_rolling, player_rolling, result
+  dealerHand: null,
+  dealerDice: [0, 0, 0],
+  playerDice: [0, 0, 0],
+  playerHand: null,
+  wins: 0,
+  losses: 0,
+  streak: 0,
+  history: []
+};
+
+const betSteps = [50, 100, 200, 500, 1000, 2000, 5000];
+
+// ============================================================
+// UI ELEMENTS
+// ============================================================
+const els = {
+  balance: document.getElementById('balance'),
+  roundNum: document.getElementById('round-num'),
+  betAmount: document.getElementById('bet-amount'),
+  btnRoll: document.getElementById('btn-roll'),
+  btnBetUp: document.getElementById('btn-bet-up'),
+  btnBetDown: document.getElementById('btn-bet-down'),
+  dice: [document.getElementById('dice1'), document.getElementById('dice2'), document.getElementById('dice3')],
+  dealerDice: [document.getElementById('dealer-d1'), document.getElementById('dealer-d2'), document.getElementById('dealer-d3')],
+  dealerResult: document.getElementById('dealer-result'),
+  resultText: document.getElementById('result-text'),
+  resultSub: document.getElementById('result-sub'),
+  reachText: document.getElementById('reach-text'),
+  superReach: document.getElementById('super-reach'),
+  jackpotOverlay: document.getElementById('jackpot-overlay'),
+  jackpotText: document.getElementById('jackpot-text'),
+  jackpotSub: document.getElementById('jackpot-sub'),
+  winPopup: document.getElementById('win-popup'),
+  multiplierDisplay: document.getElementById('multiplier-display'),
+  streakDisplay: document.getElementById('streak-display'),
+  winRate: document.getElementById('win-rate'),
+  historyBar: document.getElementById('history-bar'),
+  bowl: document.getElementById('bowl'),
+  senbareOverlay: document.getElementById('senbare-overlay')
+};
+
+function updateUI() {
+  els.balance.textContent = state.balance.toLocaleString();
+  els.roundNum.textContent = state.round;
+  els.betAmount.textContent = state.bet.toLocaleString();
+  if (state.streak > 1) els.streakDisplay.textContent = `🔥 ${state.streak}連勝!`;
+  else if (state.streak < -1) els.streakDisplay.textContent = `${state.streak}連敗...`;
+  else els.streakDisplay.textContent = '';
+  const total = state.wins + state.losses;
+  els.winRate.textContent = total > 0 ? `勝率: ${Math.round(state.wins / total * 100)}%` : '';
+}
+
+// ============================================================
+// SENBARE (先バレ) SYSTEM - Pre-reveal Effects
+// ============================================================
+async function playSenbare(playerHand, dealerHand) {
+  const handRank = playerHand.rank;
+  
+  // Level 1: Basic lamp chase (any hand)
+  if (handRank >= 61) {
+    startLampAnimation(150, 'chase');
+    await sleep(800);
+    stopLampAnimation();
+  }
+  
+  // Level 2: Reach effect (point 4+)
+  if (handRank >= 64) {
+    els.reachText.classList.add('show');
+    SFX.reach();
+    flash('white');
+    startLampAnimation(80, 'alternate');
+    await sleep(1500);
+    els.reachText.classList.remove('show');
+    stopLampAnimation();
+  }
+  
+  // Level 3: Super Reach (shigoro or higher)
+  if (handRank >= 90) {
+    els.superReach.classList.add('active');
+    SFX.superReach();
+    flash('red');
+    startLampAnimation(50, 'rainbow');
+    screenShake();
+    await sleep(2000);
+    els.superReach.classList.remove('active');
+    
+    // Heartbeat anticipation
+    for (let i = 0; i < 3; i++) {
+      SFX.heartbeat();
+      flash('red');
+      await sleep(600);
+    }
+    stopLampAnimation();
+  }
+  
+  // Level 4: Jackpot level (pinzoro or zoro)
+  if (handRank >= 92) {
+    flash('gold');
+    await sleep(300);
+    flash('red');
+    screenShake();
+    await sleep(300);
+    flash('rainbow');
+    startLampAnimation(30, 'rainbow');
+    
+    // Rapid flash sequence
+    for (let i = 0; i < 5; i++) {
+      flash(i % 2 === 0 ? 'white' : 'gold');
+      await sleep(100);
+    }
+    
+    await sleep(1000);
+    stopLampAnimation();
+  }
+}
+
+// ============================================================
+// DICE ROLLING ANIMATION
+// ============================================================
+async function animateRoll(diceEls, finalValues, isDealer = false) {
+  const rollDuration = 1500;
+  const staggerDelay = 300;
+  
+  // Start rolling animation
+  diceEls.forEach((el, i) => {
+    setTimeout(() => {
+      el.classList.add('rolling');
+      SFX.diceRoll();
+    }, i * 100);
+  });
+  
+  // Stop dice one by one with stagger
+  for (let i = 0; i < 3; i++) {
+    await sleep(rollDuration / 3 + staggerDelay * i);
+    
+    const diceEl = diceEls[i];
+    diceEl.classList.remove('rolling');
+    
+    if (isDealer) {
+      setMiniDice(diceEl, finalValues[i]);
+    } else {
+      setDiceFace(diceEl, finalValues[i]);
+    }
+    
+    SFX.diceHit();
+    
+    // Small particle burst at dice position
+    if (!isDealer) {
+      const rect = diceEl.parentElement.getBoundingClientRect();
+      emitParticles(rect.left + rect.width / 2, rect.top + rect.height / 2, 5, {
+        color: '#ffd700',
+        life: 20,
+        size: 3,
+        gravity: 0.3
+      });
+    }
+    
+    // Anticipation sound before last dice
+    if (i === 1 && !isDealer) {
+      SFX.anticipation();
+      await sleep(500); // Extra suspense for last dice
+    }
+  }
+}
+
+// ============================================================
+// RESULT PRESENTATION
+// ============================================================
+async function showResult(hand, isWin, winAmount, multi) {
+  // Show result text
+  els.resultText.style.color = hand.color;
+  els.resultText.textContent = hand.name;
+  els.resultText.classList.add('show');
+  
+  const cx = fxCanvas.width / 2;
+  const cy = fxCanvas.height / 2;
+  
+  if (isWin === true) {
+    if (multi >= 5) {
+      // PINZORO - Maximum effects
+      SFX.jackpot();
+      flash('rainbow');
+      screenShake();
+      emitRainbow(cx, cy);
+      emitFireworks(cx, cy);
+      startLampAnimation(30, 'rainbow');
+      
+      els.jackpotText.textContent = '大大大当たり!!!';
+      els.jackpotText.style.color = '#ff0000';
+      els.jackpotText.style.textShadow = '0 0 30px #ff0000';
+      els.jackpotSub.textContent = `×${multi} ${winAmount.toLocaleString()}G GET!!`;
+      els.jackpotOverlay.classList.add('active');
+      
+      emitConfetti(80);
+      
+      await sleep(3000);
+      els.jackpotOverlay.classList.remove('active');
+      stopLampAnimation();
+      
+    } else if (multi >= 3) {
+      // ZORO - Big effects
+      SFX.bigWin();
+      flash('gold');
+      screenShake();
+      emitExplosion(cx, cy, 40, () => '#ffd700');
+      startLampAnimation(50, 'rainbow');
+      
+      els.jackpotText.textContent = '大当たり!!';
+      els.jackpotText.style.color = '#ffd700';
+      els.jackpotText.style.textShadow = '0 0 20px #ffd700';
+      els.jackpotSub.textContent = `×${multi} ${winAmount.toLocaleString()}G GET!`;
+      els.jackpotOverlay.classList.add('active');
+      
+      emitConfetti(50);
+      
+      await sleep(2500);
+      els.jackpotOverlay.classList.remove('active');
+      stopLampAnimation();
+      
+    } else if (multi >= 2) {
+      // SHIGORO - Medium effects
+      SFX.bigWin();
+      flash('white');
+      emitExplosion(cx, cy, 25, () => `hsl(${Math.random() * 60 + 30},100%,60%)`);
+      startLampAnimation(80, 'alternate');
+      
+      await sleep(1500);
+      stopLampAnimation();
+      
+    } else {
+      // Normal win
+      SFX.win();
+      emitExplosion(cx, cy, 15);
+      flash('white');
+    }
+    
+    // Show win amount popup
+    els.winPopup.textContent = `+${winAmount.toLocaleString()}G`;
+    els.winPopup.classList.remove('show');
+    void els.winPopup.offsetWidth;
+    els.winPopup.classList.add('show');
+    
+    // Show multiplier
+    if (multi > 1) {
+      els.multiplierDisplay.textContent = `×${multi}`;
+      els.multiplierDisplay.classList.add('show');
+      setTimeout(() => els.multiplierDisplay.classList.remove('show'), 2000);
+    }
+    
+  } else if (isWin === false) {
+    SFX.lose();
+    
+    if (hand === HANDS.HIFUMI) {
+      flash('red');
+      screenShake();
+      els.resultSub.textContent = `−${winAmount.toLocaleString()}G ヒフミ！倍払い`;
+    } else {
+      els.resultSub.textContent = `−${state.bet.toLocaleString()}G`;
+    }
+  } else {
+    // Draw
+    els.resultSub.textContent = '引き分け - BET返還';
+  }
+}
+
+// ============================================================
+// MAIN GAME FLOW
+// ============================================================
+async function playRound() {
+  if (state.balance < state.bet) {
+    els.resultText.textContent = '所持金が足りません';
+    els.resultText.style.color = '#ff4444';
+    els.resultText.classList.add('show');
+    return;
+  }
+  
+  // Reset UI
+  els.resultText.classList.remove('show');
+  els.resultSub.textContent = '';
+  els.winPopup.classList.remove('show');
+  els.dealerResult.textContent = '';
+  els.btnRoll.className = 'btn-roll rolling';
+  els.btnRoll.textContent = '振り中...';
+  
+  state.balance -= state.bet;
+  updateUI();
+  
+  // Check for cheat dice
+  const cheatDice = cheatSystem.getCheatDice();
+  
+  // === DEALER ROLL ===
+  let dealerDice, dealerHand;
+  let dealerAttempts = 0;
+  do {
+    dealerDice = [rollDice(), rollDice(), rollDice()];
+    dealerHand = evaluateHand(...dealerDice);
+    dealerAttempts++;
+  } while (dealerHand === HANDS.MENASHI && dealerAttempts < 3);
+  
+  state.dealerDice = dealerDice;
+  state.dealerHand = dealerHand;
+  
+  // Animate dealer roll
+  await animateRoll(
+    [els.dealerDice[0], els.dealerDice[1], els.dealerDice[2]],
+    dealerDice,
+    true
+  );
+  els.dealerResult.textContent = dealerHand.name;
+  
+  await sleep(800);
+  
+  // === PLAYER ROLL ===
+  let playerDice, playerHand;
+  let playerAttempts = 0;
+  
+  if (cheatDice) {
+    playerDice = cheatDice;
+    playerHand = evaluateHand(...playerDice);
+  } else {
+    do {
+      playerDice = [rollDice(), rollDice(), rollDice()];
+      playerHand = evaluateHand(...playerDice);
+      playerAttempts++;
+    } while (playerHand === HANDS.MENASHI && playerAttempts < 3);
+  }
+  
+  state.playerDice = playerDice;
+  state.playerHand = playerHand;
+  
+  // Play senbare effects BEFORE showing dice
+  await playSenbare(playerHand, dealerHand);
+  
+  // Animate player dice
+  await animateRoll(els.dice, playerDice, false);
+  
+  await sleep(500);
+  
+  // === DETERMINE WINNER ===
+  let isWin = null;
+  let winAmount = 0;
+  let multi = 1;
+  
+  if (playerHand === HANDS.MENASHI && dealerHand === HANDS.MENASHI) {
+    // Both menashi - draw
+    isWin = null;
+    state.balance += state.bet;
+  } else if (playerHand === HANDS.MENASHI) {
+    isWin = false;
+    winAmount = state.bet;
+  } else if (dealerHand === HANDS.MENASHI) {
+    isWin = true;
+    multi = playerHand.multi || 1;
+    winAmount = state.bet * (1 + multi);
+    state.balance += winAmount;
+  } else if (playerHand === HANDS.HIFUMI) {
+    isWin = false;
+    multi = 2;
+    winAmount = state.bet * 2;
+    state.balance -= state.bet; // Extra loss
+  } else if (dealerHand === HANDS.HIFUMI) {
+    isWin = true;
+    multi = 2;
+    winAmount = state.bet * 3;
+    state.balance += winAmount;
+  } else if (playerHand.rank > dealerHand.rank) {
+    isWin = true;
+    multi = playerHand.multi || 1;
+    winAmount = state.bet * (1 + multi);
+    state.balance += winAmount;
+  } else if (playerHand.rank < dealerHand.rank) {
+    isWin = false;
+    winAmount = state.bet;
+  } else {
+    // Same rank - draw
+    isWin = null;
+    state.balance += state.bet;
+  }
+  
+  // Update stats
+  if (isWin === true) {
+    state.wins++;
+    state.streak = state.streak >= 0 ? state.streak + 1 : 1;
+  } else if (isWin === false) {
+    state.losses++;
+    state.streak = state.streak <= 0 ? state.streak - 1 : -1;
+  }
+  
+  // Add to history
+  state.history.unshift({
+    isWin,
+    hand: playerHand.name,
+    amount: isWin ? winAmount : -winAmount
+  });
+  if (state.history.length > 20) state.history.pop();
+  
+  // Show result with effects
+  await showResult(playerHand, isWin, winAmount, multi);
+  
+  // Update UI
+  state.round++;
+  updateUI();
+  updateHistory();
+  
+  // Re-enable button
+  els.btnRoll.className = 'btn-roll ready';
+  els.btnRoll.textContent = 'サイコロを振る';
+  state.phase = 'idle';
+  
+  // Game over check
+  if (state.balance <= 0) {
+    await sleep(1000);
+    els.resultText.textContent = 'GAME OVER';
+    els.resultText.style.color = '#ff0000';
+    els.resultSub.textContent = 'タップで再開';
+    els.btnRoll.textContent = 'NEW GAME';
+    els.btnRoll.onclick = () => {
+      state.balance = 10000;
+      state.round = 1;
+      state.wins = 0;
+      state.losses = 0;
+      state.streak = 0;
+      state.history = [];
+      updateUI();
+      updateHistory();
+      els.resultText.classList.remove('show');
+      els.resultSub.textContent = '';
+      els.btnRoll.onclick = handleRoll;
+      els.btnRoll.className = 'btn-roll ready';
+      els.btnRoll.textContent = 'サイコロを振る';
+    };
+  }
+}
+
+function updateHistory() {
+  els.historyBar.innerHTML = state.history.map(h => {
+    const cls = h.isWin === true ? 'win' : h.isWin === false ? 'lose' : 'draw';
+    const sign = h.isWin ? '+' : '';
+    return `<div class="history-item ${cls}">${h.hand} ${sign}${h.amount}</div>`;
+  }).join('');
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ============================================================
+// EVENT HANDLERS
+// ============================================================
+function handleRoll() {
+  if (state.phase !== 'idle') return;
+  state.phase = 'rolling';
+  playRound();
+}
+
+els.btnRoll.addEventListener('click', handleRoll);
+
+els.btnBetUp.addEventListener('click', () => {
+  if (state.phase !== 'idle') return;
+  const idx = betSteps.indexOf(state.bet);
+  if (idx < betSteps.length - 1 && betSteps[idx + 1] <= state.balance) {
+    state.bet = betSteps[idx + 1];
+    SFX.bet();
+  }
+  updateUI();
+});
+
+els.btnBetDown.addEventListener('click', () => {
+  if (state.phase !== 'idle') return;
+  const idx = betSteps.indexOf(state.bet);
+  if (idx > 0) {
+    state.bet = betSteps[idx - 1];
+    SFX.bet();
+  }
+  updateUI();
+});
+
+// Bowl tap for cheat system
+els.bowl.addEventListener('click', () => cheatSystem.onBowlTap());
+els.bowl.addEventListener('touchstart', () => cheatSystem.onHoldStart());
+els.bowl.addEventListener('touchend', () => cheatSystem.onHoldEnd());
+els.bowl.addEventListener('mousedown', () => cheatSystem.onHoldStart());
+els.bowl.addEventListener('mouseup', () => cheatSystem.onHoldEnd());
+
+// ============================================================
+// TITLE SCREEN
+// ============================================================
+const titleScreen = document.getElementById('title-screen');
+const btnStart = document.getElementById('btn-start');
+
+btnStart.addEventListener('click', () => {
+  initAudio();
+  titleScreen.classList.add('hide');
+  setTimeout(() => titleScreen.style.display = 'none', 500);
+  
+  // Initialize dice display
+  els.dice.forEach(d => setDiceFace(d, Math.ceil(Math.random() * 6)));
+  els.dealerDice.forEach(d => setMiniDice(d, null));
+  
+  // Welcome lamp animation
+  startLampAnimation(100, 'chase');
+  setTimeout(stopLampAnimation, 2000);
+  
+  updateUI();
+});
+
+// Also start on any touch (for mobile)
+titleScreen.addEventListener('touchstart', () => btnStart.click(), { once: true });
+
+// Prevent context menu on long press
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+// ============================================================
+// SWIPE CHEAT DETECTION (Alternative cheat activation)
+// ============================================================
+let touchStartX = 0, touchStartY = 0;
+let swipePattern = [];
+
+document.addEventListener('touchstart', e => {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+});
+
+document.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const minSwipe = 50;
+  
+  let dir = null;
+  if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > minSwipe) {
+    dir = dx > 0 ? 'R' : 'L';
+  } else if (Math.abs(dy) > minSwipe) {
+    dir = dy > 0 ? 'D' : 'U';
+  }
+  
+  if (dir) {
+    swipePattern.push(dir);
+    if (swipePattern.length > 10) swipePattern.shift();
+    
+    // Secret swipe pattern: U U D D L R L R
+    const secret = ['U', 'U', 'D', 'D', 'L', 'R', 'L', 'R'];
+    const recent = swipePattern.slice(-8);
+    if (recent.length === 8 && recent.every((d, i) => d === secret[i])) {
+      cheatSystem.activate();
+      swipePattern = [];
+    }
+  }
+});
+</script>
+</body>
+</html>
